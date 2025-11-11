@@ -1,0 +1,22 @@
+{
+  "name": "myproxy",
+  "version": "1.0.0",
+  "description": "Local proxy for mytinwallet.org developed by tariq mahmood",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node api/server.js"
+  },
+  "keywords": [
+    "proxy",
+    "mytinwallet",
+    "api"
+  ],
+  "author": "@tariqmahmood",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "express": "^5.1.0",
+    "dotenv": "^16.3.1"
+  }
+}
