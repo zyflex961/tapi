@@ -1,721 +1,459 @@
 /**
- * TON Swap Backend Server
- * MyTonWallet + DeDust + STON.fi Integration
- * 
- * Usage:
- * 1. npm install express cors ws
- * 2. node ton-swap-server.js
- * 3. Server runs on http://localhost:3001
- * 4. WebSocket: ws://localhost:3001
+ * swap.js - Final unified aggregator (STON.fi Omniston + STON REST + DeDust)
+ * - Listens on port 5356 (http://localhost:5356)
+ * - Endpoints under /proxy/swap/ton/*
+ * - Full request/response/error logging (console JSON)
+ * - Human <-> atomic conversions based on token decimals
+ * - Referral address set and referral fee = 1% by default
+ *
+ * Save as: swap.js
+ * Run: node swap.js
+ *
+ * Env (optional overrides):
+ *  PORT=5356
+ *  OMNISTON_WS=wss://omni-ws.ston.fi
+ *  STON_SIMULATE=https://api.ston.fi/v2/swap/simulate
+ *  STON_TOKENS=https://api.ston.fi/v2/tokens/list
+ *  DEDUST_API=https://api.dedust.io/v2
+ *  AGGREGATOR_WALLET=... (default provided below)
+ *  AGG_FEE=1
+ *  EXECUTE_ENDPOINT_STON=
+ *  EXECUTE_ENDPOINT_DEDUST=
+ *  ALLOWED_ORIGINS="*"
  */
 
-const express  = require('express');
-const cors = require('cors');
-const http = require('http');
-const WebSocket = require('ws');
+const http = require("http");
+const express = require("express");
+const cors = require("cors");
 
+// fetch shim for Node <18
+let fetchFn;
+if (typeof fetch === "function") fetchFn = fetch;
+else {
+  try { fetchFn = require("node-fetch"); }
+  catch (e) { fetchFn = (...args) => import("node-fetch").then(m => m.default(...args)); }
+}
+
+// dynamic import wrapper for Omniston SDK (ESM)
+async function importOmnistonSDK() {
+  try {
+    return await import("@ston-fi/omniston-sdk");
+  } catch (e) {
+    console.error("Omniston SDK import failed:", e && e.message ? e.message : e);
+    return null;
+  }
+}
+
+/* ---------------- CONFIG ---------------- */
+const PORT = Number(process.env.PORT || 5356);
+const BASE_PATH = process.env.BASE_PATH || "/proxy/swap/ton";
+
+const OMNISTON_WS = process.env.OMNISTON_WS || "wss://omni-ws.ston.fi";
+const STON_SIMULATE = process.env.STON_SIMULATE || "https://api.ston.fi/v2/swap/simulate";
+const STON_TOKENS = process.env.STON_TOKENS || "https://api.ston.fi/v2/tokens/list";
+const STON_POOLS = process.env.STON_POOLS || "https://api.ston.fi/v2/pools/list";
+const DEDUST_API = process.env.DEDUST_API || "https://api.dedust.io/v2";
+
+// Default referral address (you asked to set the one I used earlier)
+const AGGREGATOR_WALLET = process.env.AGGREGATOR_WALLET || "UQBLhEO_VE9uFGHbKucbqcOFeH8AqhIooPp8VhJe_qYvOAZM";
+
+// Referral fee = 1.0% (you requested)
+const AGG_FEE_PERCENT = Number(process.env.AGG_FEE || 1.0);
+
+const EXECUTE_ENDPOINT_STON = process.env.EXECUTE_ENDPOINT_STON || "";
+const EXECUTE_ENDPOINT_DEDUST = process.env.EXECUTE_ENDPOINT_DEDUST || "";
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : ["*"];
+
+/* ---------------- Logging helpers ---------------- */
+function now() { return new Date().toISOString(); }
+function pretty(obj) {
+  try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
+}
+function log(title, obj) {
+  console.log("\n===== " + title + " @ " + now() + " =====");
+  if (obj !== undefined) {
+    console.log(pretty(obj));
+  }
+  console.log("==========================================\n");
+}
+function safeParse(text) { try { return JSON.parse(text); } catch { return null; } }
+
+/* ---------------- Request Body Logger Middleware ---------------- */
 const app = express();
-const PORT = process.env.PORT || 3001;
-
-// Create HTTP server
-const server = http.createServer(app);
-
-// Create WebSocket server
-const wss = new WebSocket.Server({ server });
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// ============================================
-// CONSTANTS & CONFIGURATION
-// ============================================
-
-const DEDUST_API = 'https://api.dedust.io/v2';
-const STONFI_API = 'https://api.ston.fi/v1';
-const DEDUST_VAULT = 'EQDa4VOnTYlLvDJ0gZjNYm5PXfSmmtL6Vs6A_CZEtXCNICq_';
-const DEDUST_FACTORY = 'EQBfBWT7X2BHg9tXAxzhz2aKiNTU1tpt5NsiK0uSDW_YAJ67';
-
-const POOL_TYPE = {
-  VOLATILE: 0,
-  STABLE: 1
-};
-
-// ============================================
-// WEBSOCKET CLIENTS MANAGEMENT
-// ============================================
-
-const wsClients = new Set();
-const priceSubscriptions = new Map(); // clientId -> { pairs: [], interval }
-
-// Generate unique client ID
-function generateClientId() {
-  return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-function toRawAddress(address) {
-  if (!address || address === 'native' || address === 'TON') {
-    return 'native';
+app.use(express.json({ limit: "1mb" }));
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes("*")) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(null, false);
   }
-  return address.replace(/[^a-zA-Z0-9_-]/g, '');
+}));
+
+// Global request logger - prints headers, query, params, body
+app.use((req, res, next) => {
+  console.log("\n------ Incoming Request ------");
+  console.log("Path:", req.path);
+  console.log("Method:", req.method);
+  console.log("Headers:", pretty(req.headers));
+  console.log("Query:", pretty(req.query));
+  console.log("Params:", pretty(req.params));
+  console.log("Body:", pretty(req.body));
+  console.log("------ End Request ------\n");
+  next();
+});
+
+/* ---------------- Token normalization & unit conversion ---------------- */
+function normalizeFrontToken(v) {
+  if (!v) return null;
+  if (typeof v !== "string") v = String(v);
+  const t = v.trim();
+  if (/^ton$/i.test(t) || /^native$/i.test(t)) return "ton";
+  const base = t.split("__")[0];
+  return base.replace(/[^A-Za-z0-9_\-]/g, "") || null;
 }
 
-function formatAmount(amount, decimals = 9) {
-  return (BigInt(amount) / BigInt(10 ** decimals)).toString();
+function humanToAtomic(human, decimals = 9) {
+  if (human === undefined || human === null || human === "") return null;
+  const s = String(human).trim();
+  const [intPart, fracPart = ""] = s.split(".");
+  const frac = fracPart.slice(0, decimals).padEnd(decimals, "0");
+  return (BigInt(intPart || "0") * (BigInt(10) ** BigInt(decimals)) + BigInt(frac || "0")).toString();
 }
 
-function calculateMinReceived(amount, slippage) {
-  const slippageFactor = 1 - (slippage / 100);
-  return Math.floor(Number(amount) * slippageFactor).toString();
+function atomicToHuman(atomicStr, decimals = 9) {
+  if (atomicStr === undefined || atomicStr === null || atomicStr === "") return null;
+  const a = BigInt(atomicStr);
+  const denom = BigInt(10) ** BigInt(decimals);
+  const intPart = a / denom;
+  let frac = (a % denom).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return frac.length ? `${intPart.toString()}.${frac}` : intPart.toString();
 }
 
-// ============================================
-// DEDUST API FUNCTIONS
-// ============================================
-
-async function fetchDedustPools() {
+/* ---------------- token decimals cache ---------------- */
+const tokenDecimalsCache = new Map();
+async function fetchTokenDecimals(tokenNormalized) {
+  if (!tokenNormalized) return 9;
+  if (tokenNormalized === "ton") return 9;
+  if (tokenDecimalsCache.has(tokenNormalized)) return tokenDecimalsCache.get(tokenNormalized);
   try {
-    const response = await fetch(`${DEDUST_API}/pools`);
-    if (!response.ok) throw new Error('Failed to fetch DeDust pools');
-    return await response.json();
-  } catch (error) {
-    console.error('DeDust pools error:', error);
-    return [];
-  }
-}
-
-async function fetchDedustAssets() {
-  try {
-    const response = await fetch(`${DEDUST_API}/assets`);
-    if (!response.ok) throw new Error('Failed to fetch DeDust assets');
-    return await response.json();
-  } catch (error) {
-    console.error('DeDust assets error:', error);
-    return [];
+    log("Fetching STON tokens list for decimals", { url: STON_TOKENS });
+    const resp = await fetchFn(STON_TOKENS);
+    const txt = await resp.text();
+    const parsed = safeParse(txt) || {};
+    log("STON tokens sample", { status: resp.status, sample: parsed.asset_list?.slice?.(0,5) ?? parsed.tokens?.slice?.(0,5) ?? null });
+    const list = parsed.asset_list || parsed.tokens || parsed || [];
+    const found = list.find(t => (t.address && t.address === tokenNormalized) || (t.symbol && String(t.symbol).toLowerCase() === String(tokenNormalized).toLowerCase()));
+    const decimals = found ? (Number(found.decimals) || 9) : 9;
+    tokenDecimalsCache.set(tokenNormalized, decimals);
+    return decimals;
+  } catch (err) {
+    log("Error fetching token decimals", String(err && err.message ? err.message : err));
+    tokenDecimalsCache.set(tokenNormalized, 9);
+    return 9;
   }
 }
 
-async function getDedustSwapEstimate(fromToken, toToken, amount) {
+/* ---------------- Provider wrappers ---------------- */
+async function callStonSimulate(offerAddr, askAddr, unitsAtomic, slippageDecimal = "0.01", referral = null) {
   try {
-    const pools = await fetchDedustPools();
-    const fromAddress = toRawAddress(fromToken);
-    const toAddress = toRawAddress(toToken);
-    
-    let pool = null;
-    for (const p of pools) {
-      const assets = p.assets || [];
-      const hasFrom = fromAddress === 'native' 
-        ? assets.some(a => a.type === 'native')
-        : assets.some(a => a.address === fromAddress);
-      const hasTo = toAddress === 'native'
-        ? assets.some(a => a.type === 'native')
-        : assets.some(a => a.address === toAddress);
-      
-      if (hasFrom && hasTo) {
-        pool = p;
-        break;
-      }
-    }
-
-    if (!pool) {
-      const estimateUrl = `${DEDUST_API}/swap/estimate`;
-      const response = await fetch(estimateUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: fromAddress === 'native' ? { type: 'native' } : { type: 'jetton', address: fromAddress },
-          to: toAddress === 'native' ? { type: 'native' } : { type: 'jetton', address: toAddress },
-          amount: amount
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        return {
-          outputAmount: data.amountOut || data.amount_out,
-          priceImpact: data.priceImpact || data.price_impact || '0',
-          fee: data.fee || '0',
-          route: data.route || 'direct'
-        };
-      }
-    }
-
-    if (pool && pool.reserves) {
-      const reserves = pool.reserves;
-      const inputReserve = BigInt(reserves[0] || '1000000000000');
-      const outputReserve = BigInt(reserves[1] || '1000000000000');
-      const inputAmount = BigInt(amount);
-      
-      const fee = inputAmount * BigInt(3) / BigInt(1000);
-      const amountAfterFee = inputAmount - fee;
-      const outputAmount = (amountAfterFee * outputReserve) / (inputReserve + amountAfterFee);
-      const priceImpact = Number(inputAmount * BigInt(100) / inputReserve);
-      
-      return {
-        outputAmount: outputAmount.toString(),
-        priceImpact: priceImpact.toFixed(2),
-        fee: fee.toString(),
-        route: 'pool',
-        poolAddress: pool.address
-      };
-    }
-
-    return {
-      outputAmount: (BigInt(amount) * BigInt(97) / BigInt(100)).toString(),
-      priceImpact: '0.5',
-      fee: (BigInt(amount) * BigInt(3) / BigInt(1000)).toString(),
-      route: 'estimated'
+    const body = {
+      offer_address: offerAddr === "ton" ? "ton" : offerAddr,
+      ask_address: askAddr === "ton" ? "ton" : askAddr,
+      units: String(unitsAtomic),
+      slippage_tolerance: String(slippageDecimal)
     };
-  } catch (error) {
-    console.error('DeDust estimate error:', error);
-    throw error;
-  }
-}
-
-// ============================================
-// STON.FI API FUNCTIONS
-// ============================================
-
-async function fetchStonfiPools() {
-  try {
-    const response = await fetch(`${STONFI_API}/pools`);
-    if (!response.ok) throw new Error('Failed to fetch STON.fi pools');
-    const data = await response.json();
-    return data.pool_list || [];
-  } catch (error) {
-    console.error('STON.fi pools error:', error);
-    return [];
-  }
-}
-
-async function fetchStonfiAssets() {
-  try {
-    const response = await fetch(`${STONFI_API}/assets`);
-    if (!response.ok) throw new Error('Failed to fetch STON.fi assets');
-    const data = await response.json();
-    return data.asset_list || [];
-  } catch (error) {
-    console.error('STON.fi assets error:', error);
-    return [];
-  }
-}
-
-async function getStonfiSwapEstimate(fromToken, toToken, amount) {
-  try {
-    const fromAddress = toRawAddress(fromToken);
-    const toAddress = toRawAddress(toToken);
-
-    const simulateUrl = `${STONFI_API}/swap/simulate`;
-    const response = await fetch(simulateUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        offer_address: fromAddress === 'native' ? 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c' : fromAddress,
-        ask_address: toAddress === 'native' ? 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c' : toAddress,
-        units: amount,
-        slippage_tolerance: '0.01'
-      })
+    if (referral) body.referral = referral;
+    log("OUTBOUND → STON.simulate", { url: STON_SIMULATE, body });
+    const resp = await fetchFn(STON_SIMULATE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
     });
+    const text = await resp.text();
+    const parsed = safeParse(text);
+    log("INBOUND ← STON.simulate", { status: resp.status, parsedSample: parsed ?? null, textSnippet: text.slice(0,1200) });
+    return { ok: resp.ok, status: resp.status, parsed, rawText: text };
+  } catch (err) {
+    log("STON.simulate error", String(err && err.message ? err.message : err));
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
 
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        outputAmount: data.ask_units || data.min_ask_units,
-        priceImpact: data.price_impact || '0',
-        fee: data.fee_units || '0',
-        route: 'stonfi'
+async function callDedustEstimate(fromNorm, toNorm, amountAtomic) {
+  try {
+    const url = `${DEDUST_API}/swap/estimate`;
+    const body = {
+      from: fromNorm === "ton" ? { type: "native" } : { type: "jetton", address: fromNorm },
+      to: toNorm === "ton" ? { type: "native" } : { type: "jetton", address: toNorm },
+      amount: String(amountAtomic)
+    };
+    log("OUTBOUND → DeDust.estimate", { url, body });
+    const resp = await fetchFn(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const text = await resp.text();
+    const parsed = safeParse(text);
+    log("INBOUND ← DeDust.estimate", { status: resp.status, parsedSample: parsed ?? null, textSnippet: text.slice(0,1200) });
+    return { ok: resp.ok, status: resp.status, parsed, rawText: text };
+  } catch (err) {
+    log("DeDust.estimate error", String(err && err.message ? err.message : err));
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+}
+
+/* ---------- Numeric extraction helpers ---------- */
+function extractNumericFromSton(parsed) {
+  if (!parsed) return null;
+  const keys = ["ask_units", "min_ask_units", "askUnits", "minAskUnits", "amount_out", "amountOut", "outAmount"];
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(parsed, k)) {
+      const v = parsed[k];
+      if (typeof v === "string" && /^\d+$/.test(v)) return v;
+      if (typeof v === "number" && Number.isFinite(v)) return String(Math.floor(v));
+      if (typeof v === "object" && v !== null) {
+        const nested = Object.values(v).find(x => typeof x === "string" && /^\d+$/.test(x));
+        if (nested) return nested;
+      }
+    }
+  }
+  if (parsed.result) return extractNumericFromSton(parsed.result);
+  if (parsed.data) return extractNumericFromSton(parsed.data);
+  return null;
+}
+function extractNumericFromDedust(parsed) {
+  if (!parsed) return null;
+  const keys = ["amountOut", "amount_out", "out", "outputAmount"];
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(parsed, k)) {
+      const v = parsed[k];
+      if (typeof v === "string" && /^\d+$/.test(v)) return v;
+      if (typeof v === "number" && Number.isFinite(v)) return String(Math.floor(v));
+      if (typeof v === "object" && v !== null) {
+        const nested = Object.values(v).find(x => typeof x === "string" && /^\d+$/.test(x));
+        if (nested) return nested;
+      }
+    }
+  }
+  if (Array.isArray(parsed) && parsed.length) return extractNumericFromDedust(parsed[0]);
+  if (parsed.result) return extractNumericFromDedust(parsed.result);
+  return null;
+}
+function extractAtomicFromOmnistonQuote(quote) {
+  if (!quote) return null;
+  if (quote.askUnits && /^\d+$/.test(String(quote.askUnits))) return String(quote.askUnits);
+  if (quote.bidUnits && /^\d+$/.test(String(quote.bidUnits))) return String(quote.bidUnits);
+  if (quote.ask_units && /^\d+$/.test(String(quote.ask_units))) return String(quote.ask_units);
+  return null;
+}
+
+/* ---------------- Omniston SDK client (dynamic) ---------------- */
+let omnistonClient = null;
+let OmnistonSDK = null;
+async function initOmniston() {
+  if (omnistonClient && OmnistonSDK) return { omnistonClient, OmnistonSDK };
+  try {
+    const sdk = await importOmnistonSDK();
+    if (!sdk) return { omnistonClient: null, OmnistonSDK: null };
+    OmnistonSDK = sdk;
+    omnistonClient = new sdk.Omniston({ apiUrl: OMNISTON_WS });
+    log("Omniston client created", { OMNISTON_WS });
+    return { omnistonClient, OmnistonSDK };
+  } catch (err) {
+    log("initOmniston error", String(err && err.message ? err.message : err));
+    omnistonClient = null; OmnistonSDK = null;
+    return { omnistonClient: null, OmnistonSDK: null };
+  }
+}
+
+/* ---------------- Core aggregator flow ---------------- */
+async function getBestQuote({ fromRaw, toRaw, humanAmount, slippagePercent = 1, referral = AGGREGATOR_WALLET }) {
+  log("AGG received frontend payload", { fromRaw, toRaw, humanAmount, slippagePercent, referral });
+
+  const offer = normalizeFrontToken(fromRaw);
+  const ask = normalizeFrontToken(toRaw);
+  if (!offer || !ask) {
+    log("Invalid tokens after normalization", { fromRaw, toRaw, offer, ask });
+    return { ok: false, error: "invalid_tokens", details: { fromRaw, toRaw } };
+  }
+
+  const offerDecimals = await fetchTokenDecimals(offer);
+  const askDecimals = await fetchTokenDecimals(ask);
+
+  const unitsAtomic = humanToAtomic(humanAmount, offerDecimals);
+  log("Converted human -> atomic", { humanAmount, offerDecimals, unitsAtomic });
+
+  const stonOffer = offer === "ton" ? "ton" : offer;
+  const stonAsk = ask === "ton" ? "ton" : ask;
+  const slippageDecimal = String(Number(slippagePercent) / 100);
+
+  // 1) Omniston RFQ preferred
+  let omnistonQuote = null;
+  try {
+    const { omnistonClient, OmnistonSDK } = await initOmniston();
+    if (omnistonClient && OmnistonSDK) {
+      const rfqReq = {
+        settlementMethods: [OmnistonSDK.SettlementMethod.SETTLEMENT_METHOD_SWAP],
+        askAssetAddress: { blockchain: OmnistonSDK.Blockchain.TON, address: stonAsk === "ton" ? undefined : stonAsk },
+        bidAssetAddress: { blockchain: OmnistonSDK.Blockchain.TON, address: stonOffer === "ton" ? undefined : stonOffer },
+        amount: { bidUnits: String(unitsAtomic) },
+        settlementParams: {
+          maxPriceSlippageBps: Math.round(Number(slippagePercent) * 100),
+          gaslessSettlement: OmnistonSDK.GaslessSettlement.GASLESS_SETTLEMENT_POSSIBLE,
+          maxOutgoingMessages: 4,
+          flexibleReferrerFee: true
+        }
       };
-    }
+      if (referral) rfqReq.referrerAddress = { blockchain: OmnistonSDK.Blockchain.TON, address: referral };
+      log("OUTBOUND → Omniston.requestForQuote (subscribe)", rfqReq);
 
-    return null;
-  } catch (error) {
-    console.error('STON.fi estimate error:', error);
-    return null;
-  }
-}
-
-// ============================================
-// BUILD SWAP TRANSACTION PAYLOADS
-// ============================================
-
-function buildNativeToJettonPayload(params) {
-  const { toToken, amount, minReceived, senderAddress } = params;
-  
-  return {
-    to: DEDUST_VAULT,
-    value: amount,
-    payload: {
-      op: 'swap',
-      poolAddress: toToken,
-      minOut: minReceived,
-      recipient: senderAddress,
-      referral: null
-    }
-  };
-}
-
-function buildJettonToNativePayload(params) {
-  const { fromToken, amount, minReceived, senderAddress } = params;
-  
-  return {
-    to: fromToken,
-    value: '300000000',
-    payload: {
-      op: 'transfer',
-      destination: DEDUST_VAULT,
-      amount: amount,
-      forwardPayload: {
-        op: 'swap',
-        minOut: minReceived,
-        recipient: senderAddress
-      }
-    }
-  };
-}
-
-function buildJettonToJettonPayload(params) {
-  const { fromToken, toToken, amount, minReceived, senderAddress } = params;
-  
-  return {
-    to: fromToken,
-    value: '500000000',
-    payload: {
-      op: 'transfer',
-      destination: DEDUST_FACTORY,
-      amount: amount,
-      forwardPayload: {
-        op: 'swap',
-        poolAddress: toToken,
-        minOut: minReceived,
-        recipient: senderAddress
-      }
-    }
-  };
-}
-
-// ============================================
-// WEBSOCKET HANDLERS
-// ============================================
-
-wss.on('connection', (ws) => {
-  const clientId = generateClientId();
-  ws.clientId = clientId;
-  wsClients.add(ws);
-  
-  console.log(`🔌 WebSocket client connected: ${clientId}`);
-  
-  // Send welcome message
-  ws.send(JSON.stringify({
-    type: 'connected',
-    clientId: clientId,
-    message: 'Connected to TON Swap Server',
-    timestamp: Date.now()
-  }));
-
-  // Handle incoming messages
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      console.log(`📨 WS Message from ${clientId}:`, data);
-      
-      switch (data.type) {
-        case 'subscribe_prices':
-          handlePriceSubscription(ws, data);
-          break;
-          
-        case 'unsubscribe_prices':
-          handlePriceUnsubscription(ws);
-          break;
-          
-        case 'estimate':
-          await handleEstimateRequest(ws, data);
-          break;
-          
-        case 'build':
-          await handleBuildRequest(ws, data);
-          break;
-          
-        case 'get_pools':
-          await handleGetPools(ws, data);
-          break;
-          
-        case 'get_assets':
-          await handleGetAssets(ws);
-          break;
-          
-        case 'ping':
-          ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
-          break;
-          
-        default:
-          ws.send(JSON.stringify({
-            type: 'error',
-            error: 'Unknown message type',
-            receivedType: data.type
-          }));
-      }
-    } catch (error) {
-      console.error('WS message parse error:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        error: 'Invalid message format'
-      }));
-    }
-  });
-
-  // Handle disconnection
-  ws.on('close', () => {
-    console.log(`🔌 WebSocket client disconnected: ${clientId}`);
-    wsClients.delete(ws);
-    
-    // Clean up subscriptions
-    if (priceSubscriptions.has(clientId)) {
-      const sub = priceSubscriptions.get(clientId);
-      if (sub.interval) clearInterval(sub.interval);
-      priceSubscriptions.delete(clientId);
-    }
-  });
-
-  ws.on('error', (error) => {
-    console.error(`WS error for ${clientId}:`, error);
-  });
-});
-
-// Handle price subscription
-function handlePriceSubscription(ws, data) {
-  const clientId = ws.clientId;
-  const pairs = data.pairs || [];
-  const interval = data.interval || 3000; // Default 3 seconds
-  
-  // Clear existing subscription
-  if (priceSubscriptions.has(clientId)) {
-    const existing = priceSubscriptions.get(clientId);
-    if (existing.interval) clearInterval(existing.interval);
-  }
-  
-  // Create new subscription
-  const priceInterval = setInterval(async () => {
-    if (ws.readyState !== WebSocket.OPEN) {
-      clearInterval(priceInterval);
-      priceSubscriptions.delete(clientId);
-      return;
-    }
-    
-    try {
-      const prices = await fetchRealtimePrices(pairs);
-      ws.send(JSON.stringify({
-        type: 'price_update',
-        prices: prices,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      console.error('Price fetch error:', error);
-    }
-  }, interval);
-  
-  priceSubscriptions.set(clientId, { pairs, interval: priceInterval });
-  
-  ws.send(JSON.stringify({
-    type: 'subscribed',
-    pairs: pairs,
-    interval: interval,
-    message: 'Price subscription active'
-  }));
-  
-  console.log(`📊 Client ${clientId} subscribed to prices:`, pairs);
-}
-
-// Handle price unsubscription
-function handlePriceUnsubscription(ws) {
-  const clientId = ws.clientId;
-  
-  if (priceSubscriptions.has(clientId)) {
-    const sub = priceSubscriptions.get(clientId);
-    if (sub.interval) clearInterval(sub.interval);
-    priceSubscriptions.delete(clientId);
-    
-    ws.send(JSON.stringify({
-      type: 'unsubscribed',
-      message: 'Price subscription cancelled'
-    }));
-    
-    console.log(`📊 Client ${clientId} unsubscribed from prices`);
-  }
-}
-
-// Fetch real-time prices for specified pairs
-async function fetchRealtimePrices(pairs = []) {
-  try {
-    const [dedustPools, stonfiPools] = await Promise.all([
-      fetchDedustPools(),
-      fetchStonfiPools()
-    ]);
-    
-    const prices = {};
-    
-    // Process DeDust pools
-    for (const pool of dedustPools.slice(0, 20)) {
-      if (pool.assets && pool.assets.length >= 2) {
-        const asset0 = pool.assets[0];
-        const asset1 = pool.assets[1];
-        const pairKey = `${asset0.symbol || 'TON'}/${asset1.symbol || 'UNKNOWN'}`;
-        
-        if (pairs.length === 0 || pairs.includes(pairKey)) {
-          prices[pairKey] = {
-            dex: 'dedust',
-            reserves: pool.reserves,
-            totalSupply: pool.totalSupply,
-            address: pool.address,
-            price: pool.reserves ? 
-              (Number(pool.reserves[1]) / Number(pool.reserves[0])).toFixed(9) : null
-          };
-        }
-      }
-    }
-    
-    // Process STON.fi pools
-    for (const pool of stonfiPools.slice(0, 20)) {
-      const pairKey = `${pool.token0_symbol || 'TON'}/${pool.token1_symbol || 'UNKNOWN'}`;
-      
-      if (pairs.length === 0 || pairs.includes(pairKey)) {
-        if (!prices[pairKey]) {
-          prices[pairKey] = {
-            dex: 'stonfi',
-            reserve0: pool.reserve0,
-            reserve1: pool.reserve1,
-            address: pool.address,
-            price: pool.reserve0 && pool.reserve1 ? 
-              (Number(pool.reserve1) / Number(pool.reserve0)).toFixed(9) : null
-          };
-        }
-      }
-    }
-    
-    return prices;
-  } catch (error) {
-    console.error('Fetch realtime prices error:', error);
-    return {};
-  }
-}
-
-// Handle estimate request via WebSocket
-async function handleEstimateRequest(ws, data) {
-  try {
-    const { fromToken, toToken, amount, slippage = 0.5 } = data;
-    
-    if (!fromToken || !toToken || !amount) {
-      ws.send(JSON.stringify({
-        type: 'estimate_error',
-        error: 'Missing required parameters: fromToken, toToken, amount',
-        requestId: data.requestId
-      }));
-      return;
-    }
-    
-    const [dedustEstimate, stonfiEstimate] = await Promise.all([
-      getDedustSwapEstimate(fromToken, toToken, amount),
-      getStonfiSwapEstimate(fromToken, toToken, amount)
-    ]);
-    
-    let bestEstimate = dedustEstimate;
-    let dex = 'dedust';
-    
-    if (stonfiEstimate && BigInt(stonfiEstimate.outputAmount || '0') > BigInt(dedustEstimate.outputAmount || '0')) {
-      bestEstimate = stonfiEstimate;
-      dex = 'stonfi';
-    }
-    
-    const minReceived = calculateMinReceived(bestEstimate.outputAmount, slippage);
-    
-    ws.send(JSON.stringify({
-      type: 'estimate_result',
-      requestId: data.requestId,
-      success: true,
-      outputAmount: bestEstimate.outputAmount,
-      minReceived: minReceived,
-      priceImpact: bestEstimate.priceImpact,
-      fee: bestEstimate.fee,
-      route: bestEstimate.route,
-      dex: dex,
-      slippage: slippage,
-      comparison: {
-        dedust: dedustEstimate,
-        stonfi: stonfiEstimate
-      },
-      timestamp: Date.now()
-    }));
-    
-  } catch (error) {
-    console.error('WS estimate error:', error);
-    ws.send(JSON.stringify({
-      type: 'estimate_error',
-      error: error.message,
-      requestId: data.requestId
-    }));
-  }
-}
-
-// Handle build request via WebSocket
-async function handleBuildRequest(ws, data) {
-  try {
-    const { fromToken, toToken, amount, minReceived, senderAddress, slippage = 0.5 } = data;
-    
-    if (!fromToken || !toToken || !amount || !senderAddress) {
-      ws.send(JSON.stringify({
-        type: 'build_error',
-        error: 'Missing required parameters',
-        requestId: data.requestId
-      }));
-      return;
-    }
-    
-    const isFromNative = fromToken === 'native' || fromToken === 'TON';
-    const isToNative = toToken === 'native' || toToken === 'TON';
-    
-    let calculatedMinReceived = minReceived;
-    if (!calculatedMinReceived) {
-      const estimate = await getDedustSwapEstimate(fromToken, toToken, amount);
-      calculatedMinReceived = calculateMinReceived(estimate.outputAmount, slippage);
-    }
-    
-    let transaction;
-    
-    if (isFromNative && !isToNative) {
-      transaction = buildNativeToJettonPayload({
-        toToken, amount, minReceived: calculatedMinReceived, senderAddress
+      const observable = omnistonClient.requestForQuote(rfqReq);
+      omnistonQuote = await new Promise((resolve) => {
+        const sub = observable.subscribe((ev) => {
+          log("INBOUND ← Omniston RFQ event", ev);
+          if (ev.type === "quoteUpdated" && ev.quote) {
+            sub.unsubscribe();
+            resolve({ ok: true, quote: ev.quote, rfqId: ev.rfqId });
+          } else if (ev.type === "noQuote") {
+            sub.unsubscribe(); resolve({ ok: false, error: "noQuote" });
+          }
+        });
+        setTimeout(() => { try { sub.unsubscribe(); } catch {} ; resolve({ ok: false, error: "timeout" }); }, 6000);
       });
-    } else if (!isFromNative && isToNative) {
-      transaction = buildJettonToNativePayload({
-        fromToken, amount, minReceived: calculatedMinReceived, senderAddress
-      });
-    } else if (!isFromNative && !isToNative) {
-      transaction = buildJettonToJettonPayload({
-        fromToken, toToken, amount, minReceived: calculatedMinReceived, senderAddress
-      });
+      if (!omnistonQuote.ok) log("Omniston RFQ result", omnistonQuote);
     } else {
-      ws.send(JSON.stringify({
-        type: 'build_error',
-        error: 'TON -> TON swap is not supported',
-        requestId: data.requestId
-      }));
-      return;
+      log("Omniston client not available - skipping RFQ");
     }
-    
-    ws.send(JSON.stringify({
-      type: 'build_result',
-      requestId: data.requestId,
-      success: true,
-      transaction: transaction,
-      fromToken: fromToken,
-      toToken: toToken,
-      amount: amount,
-      minReceived: calculatedMinReceived,
-      senderAddress: senderAddress,
-      estimatedGas: isFromNative ? '0' : transaction.value,
-      timestamp: Date.now()
-    }));
-    
-  } catch (error) {
-    console.error('WS build error:', error);
-    ws.send(JSON.stringify({
-      type: 'build_error',
-      error: error.message,
-      requestId: data.requestId
-    }));
+  } catch (err) {
+    log("Omniston RFQ error", String(err && err.message ? err.message : err));
   }
+
+  // 2) STON simulate & 3) DeDust estimate in parallel
+  const stonPromise = callStonSimulate(stonOffer, stonAsk, unitsAtomic, slippageDecimal, referral);
+  const dedustPromise = callDedustEstimate(offer, ask, unitsAtomic);
+  const [stonResp, dedustResp] = await Promise.all([stonPromise, dedustPromise]);
+
+  // extract atomic results
+  const omnAtomic = omnistonQuote && omnistonQuote.ok ? extractAtomicFromOmnistonQuote(omnistonQuote.quote) : null;
+  const stonAtomic = stonResp.ok ? extractNumericFromSton(stonResp.parsed ?? safeParse(stonResp.rawText)) : null;
+  const dedustAtomic = dedustResp.ok ? extractNumericFromDedust(dedustResp.parsed ?? safeParse(dedustResp.rawText)) : null;
+
+  log("Parsed atomic outputs", { omnAtomic, stonAtomic, dedustAtomic });
+
+  const candidates = [];
+  if (omnAtomic) candidates.push({ name: "OMNISTON", atomic: BigInt(omnAtomic), raw: omnistonQuote });
+  if (stonAtomic) candidates.push({ name: "STON_REST", atomic: BigInt(stonAtomic), raw: stonResp });
+  if (dedustAtomic) candidates.push({ name: "DEDUST", atomic: BigInt(dedustAtomic), raw: dedustResp });
+
+  if (candidates.length === 0) {
+    log("No provider returned numeric quote", { omnistonQuote, stonResp, dedustResp });
+    return { ok: false, error: "no_provider_output", upstreams: { omniston: omnistonQuote, ston: stonResp, dedust: dedustResp } };
+  }
+
+  candidates.sort((a,b) => (a.atomic > b.atomic ? -1 : 1));
+  const chosen = candidates[0];
+  const chosenAtomicStr = chosen.atomic.toString();
+  const chosenName = chosen.name;
+  const askDecimals = ask === "ton" ? 9 : await fetchTokenDecimals(ask);
+  const amountOutHuman = atomicToHuman(chosenAtomicStr, askDecimals);
+
+  // aggregator fee
+  const feeAtomic = (chosen.atomic * BigInt(Math.round(AGG_FEE_PERCENT * 1000))) / BigInt(100 * 1000);
+  const userReceiveAtomic = chosen.atomic - feeAtomic;
+
+  const result = {
+    ok: true,
+    dexUsed: chosenName,
+    from: { token: offer, decimals: offerDecimals, amountHuman: String(humanAmount), amountAtomic: unitsAtomic },
+    to: { token: ask, decimals: askDecimals, amountAtomic: chosenAtomicStr, amountHuman: amountOutHuman },
+    aggregatorFeePercent: AGG_FEE_PERCENT,
+    aggregatorFeeAmountHuman: atomicToHuman(feeAtomic.toString(), askDecimals),
+    userReceiveAfterFeeHuman: atomicToHuman(userReceiveAtomic.toString(), askDecimals),
+    providerRaw: chosen.raw,
+    rawProviders: { omniston: omnistonQuote ?? null, ston: stonResp, dedust: dedustResp },
+    debug: { slippagePercent, referral }
+  };
+
+  log("Best quote result prepared", result);
+  return result;
 }
 
-// Handle get pools request
-async function handleGetPools(ws, data) {
-  try {
-    const dex = data.dex || 'all';
-    let pools = {};
-    
-    if (dex === 'all' || dex === 'dedust') {
-      pools.dedust = await fetchDedustPools();
-    }
-    if (dex === 'all' || dex === 'stonfi') {
-      pools.stonfi = await fetchStonfiPools();
-    }
-    
-    ws.send(JSON.stringify({
-      type: 'pools_result',
-      requestId: data.requestId,
-      success: true,
-      pools: pools,
-      timestamp: Date.now()
-    }));
-  } catch (error) {
-    ws.send(JSON.stringify({
-      type: 'pools_error',
-      error: error.message,
-      requestId: data.requestId
-    }));
+/* ---------------- Build endpoint ---------------- */
+async function handleBuild(body) {
+  log("INBOUND FRONTEND /handleBuild body", body);
+  const fromRaw = body.fromToken ?? body.from ?? body.offer;
+  const toRaw = body.toToken ?? body.to ?? body.ask;
+  const humanAmount = body.fromAmount ?? body.amount ?? body.units;
+  const senderAddress = body.senderAddress ?? body.sourceAddress ?? null;
+  const slippage = body.slippage ?? 1;
+  const referral = body.referral ?? AGGREGATOR_WALLET;
+
+  if (!fromRaw || !toRaw || humanAmount === undefined || !senderAddress) {
+    log("Invalid build request - missing fields", { fromRaw, toRaw, humanAmount, senderAddress });
+    return { ok: false, error: "invalid_input", details: { fromRaw, toRaw, humanAmount, senderAddress } };
   }
-}
 
-// Handle get assets request
-async function handleGetAssets(ws) {
-  try {
-    const [dedustAssets, stonfiAssets] = await Promise.all([
-      fetchDedustAssets(),
-      fetchStonfiAssets()
-    ]);
-    
-    ws.send(JSON.stringify({
-      type: 'assets_result',
-      success: true,
-      dedust: dedustAssets,
-      stonfi: stonfiAssets,
-      timestamp: Date.now()
-    }));
-  } catch (error) {
-    ws.send(JSON.stringify({
-      type: 'assets_error',
-      error: error.message
-    }));
+  const estimate = await getBestQuote({ fromRaw, toRaw, humanAmount, slippagePercent: slippage, referral });
+  if (!estimate.ok) {
+    log("Build aborted - estimate failed", estimate);
+    return estimate;
   }
-}
 
-// Broadcast to all connected clients
-function broadcastToAll(message) {
-  const data = JSON.stringify(message);
-  wsClients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(data);
+  // if Omniston chosen and quote present -> try buildTransfer
+  try {
+    const { omnistonClient, OmnistonSDK } = await initOmniston();
+    if (omnistonClient && OmnistonSDK && estimate.dexUsed === "OMNISTON" && estimate.providerRaw && estimate.providerRaw.quote) {
+      log("Attempting Omniston.buildTransfer", { quoteId: estimate.providerRaw.quote.quoteId });
+      const tx = await omnistonClient.buildTransfer({
+        quote: estimate.providerRaw.quote,
+        sourceAddress: { blockchain: OmnistonSDK.Blockchain.TON, address: senderAddress },
+        destinationAddress: { blockchain: OmnistonSDK.Blockchain.TON, address: senderAddress },
+        gasExcessAddress: { blockchain: OmnistonSDK.Blockchain.TON, address: senderAddress },
+        useRecommendedSlippage: true
+      });
+      log("Omniston.buildTransfer result", { messagesCount: tx?.ton?.messages?.length ?? 0 });
+      return { ok: true, estimate, build: { provider: "OMNISTON", tx } };
     }
-  });
-}
-
-// ============================================
-// REST API ENDPOINTS
-// ============================================
-
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    wsClients: wsClients.size,
-    subscriptions: priceSubscriptions.size,
-    timestamp: new Date().toISOString() 
-  });
-});
-
-app.get('/assets', async (req, res) => {
-  try {
-    const [dedustAssets, stonfiAssets] = await Promise.all([
-      fetchDedustAssets(),
-      fetchStonfiAssets()
-    ]);
-    res.json({ success: true, dedust: dedustAssets, stonfi: stonfiAssets });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+  } catch (err) {
+    log("Omniston.buildTransfer error", String(err && err.message ? err.message : err));
   }
-});
 
-app.get('/pools', async (req, res) => {
-  try {
-    const [dedustPools, stonfiPools] = 
+  // fallback -> template
+  const offer = normalizeFrontToken(fromRaw);
+  const ask = normalizeFrontToken(toRaw);
+  const offerDecimals = await fetchTokenDecimals(offer);
+  const askDecimals = await fetchTokenDecimals(ask);
+  const isFromNative = (offer === "ton");
+  const isToNative = (ask === "ton");
+
+  const outAtomic = estimate.to.amountAtomic;
+  const slippageFactorNum = BigInt(Math.floor((1 - (Number(slippage) / 100)) * 1000000));
+  const minOutAtomic = (BigInt(outAtomic) * slippageFactorNum) / BigInt(1000000);
+
+  let template = null;
+  if (isFromNative && !isToNative) {
+    template = {
+      type: "TON->JETTON",
+      to: "DEPOSIT_VAULT_OR_ROUTER_PLACEHOLDER",
+      valueNano: humanToAtomic(humanAmount, 9),
+      minOutAtomic: minOutAtomic.toString(),
+      recipient: senderAddress,
+      referral
+    };
+  } else if (!isFromNative && isToNative) {
+    template = {
+      type: "JETTON->TON",
+      jettonMaster: offer,
+      transferAmountAtomic: humanToAtomic(humanAmount, offerDecimals),
+      forwardPayload: { op: "swap", minOutAtomic: minOutAtomic.toString(), recipient: senderAddress, referral }
+    };
+  } else if (!isFromNative && !isToNative) {
+    template = {
+      type: "JETTON->JETTON",
+      fromJettonMaster: offer,
+      toJettonPoolAddress: ask,
+      transferAmountAtomic: humanToAtomic(humanAmount, offerDecimals),
+      minOutAtomic: minOutAtomic.toString(),
+   
