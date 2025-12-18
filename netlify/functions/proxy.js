@@ -23,13 +23,13 @@ const allowedOrigins = [
  "https://tonapi.netlify.app",
  "http://localhost:4321",
  "http://127.0.0.1:4321",
- "https://walletweb-delta.vercel.app",
+ "http://localhost:8888",
+ "http://127.0.0.1:8888",
  "https://walletdps.vercel.app",
- "https://walletdps-ihg2.vercel.app",
+ "https://walletdp-web.vercel.app",
  "https://walletdps.netlify.app",
-  "https://walletdps.vercel.app",
-  "http://localhost:8888",
-  "http://127.0.0.1:8888",
+ "https://walletdps.vercel.app",
+
 ];
 
 // ===== CORS =====
