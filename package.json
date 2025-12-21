@@ -1,12 +1,8 @@
 {
-  "name": "myproxy",
+  "name": "tapi-api",
   "version": "1.0.0",
-  "description": "Universal proxy for mytonwallet API",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev"
-  },
-  "dependencies": {
-    "axios": "^1.6.2"
+    "start": "node api/index.js"
   }
 }
