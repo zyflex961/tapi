@@ -7,6 +7,8 @@ import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
 import initEuroBot from "./Telegram.js";
 
+// bot start
+initEuroBot();
 const app = express();
 const PORT = 4355;
 
@@ -16,11 +18,6 @@ const PORT = 4355;
 const allowedOrigins = [
   "http://localhost:4321",
   "http://127.0.0.1:4321",
-  "http://localhost:4323",
-  "http://localhost:4355",
-  "http://127.0.0.1:4355",
-  "http://localhost:8888",
-  "http://127.0.0.1:8888",
   "https://walletdpstg.netlify.app",
   "https://wallet-multisend.vercel.app",
   "https://walletweb-delta.vercel.app",
@@ -97,3 +94,4 @@ app.use(Proxy);
 app.listen(PORT, () => {
   console.log(`📂 Catalog Access: https://tapi-27fd.onrender.com/v2/dapp/catalog`);
 });
+
