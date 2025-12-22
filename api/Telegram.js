@@ -1,17 +1,17 @@
-import { Telegraf, Markup } from "telegraf";
+import { Telegraf } from "telegraf";
 import fs from "fs";
 import path from "path";
 import "dotenv/config";
 
-let botStarted = false;
+let started = false;
 
 export default function initEuroBot() {
-    if (botStarted) return;
-    botStarted = true;
+    if (started) return;
+    started = true;
 
     const BOT_TOKEN = process.env.BOT_TOKEN;
     if (!BOT_TOKEN) {
-        console.error("❌ BOT_TOKEN missing");
+        console.error("BOT_TOKEN missing");
         return;
     }
 
@@ -24,143 +24,120 @@ export default function initEuroBot() {
     const USERS_FILE = path.join(process.cwd(), "users.json");
     const TASKS_FILE = path.join(process.cwd(), "tasks.json");
 
-    /* ================= HELPERS ================= */
+    /* ========= helpers ========= */
 
-    const loadJSON = (file) => {
-        if (!fs.existsSync(file)) return [];
-        try {
-            return JSON.parse(fs.readFileSync(file, "utf8"));
-        } catch {
-            return [];
+    const loadJSON = (f) => {
+        if (!fs.existsSync(f)) return [];
+        try { return JSON.parse(fs.readFileSync(f, "utf8")); }
+        catch { return []; }
+    };
+
+    const saveJSON = (f, d) =>
+        fs.writeFileSync(f, JSON.stringify(d, null, 2));
+
+    const getUser = (users, id) => {
+        let u = users.find(x => x.chatId === id);
+        if (!u) {
+            u = { chatId: id, balance: 0, referCount: 0, completedTasks: [] };
+            users.push(u);
         }
+        return u;
     };
 
-    const saveJSON = (file, data) => {
-        fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    };
-
-    /* ================= PROFILE CARD ================= */
+    /* ========= profile ========= */
 
     async function sendProfile(ctx, user) {
         const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;
 
-        const text =
-            `💎 *DPS DIGITAL WALLET*\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `🆔 *Account ID:* \`${user.chatId}\`\n` +
-            `💰 *Balance:* **${user.balance} DPS**\n` +
-            `👥 *Referrals:* ${user.referCount}\n\n` +
-            `🔗 *Your Referral Link:*\n` +
-            `\`${refLink}\`\n\n` +
-            `🚀 *Invite friends & earn 200 DPS per referral!*`;
-
         await ctx.replyWithPhoto(DEFAULT_PHOTO, {
-            caption: text,
+            caption:
+                `💎 *DPS DIGITAL WALLET*\n` +
+                `━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `🆔 Account ID: \`${user.chatId}\`\n` +
+                `💰 Balance: *${user.balance} DPS*\n` +
+                `👥 Referrals: *${user.referCount}*\n\n` +
+                `🔗 *Referral Link*\n` +
+                `\`${refLink}\`\n\n` +
+                `Invite friends and earn *200 DPS* per referral.`,
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard([
-                [Markup.button.url("🚀 Open DPS Wallet App", WEB_APP_URL)],
-                [Markup.button.callback("💰 Deposit DPS", "buy_euro")],
-                [
-                    Markup.button.callback("🎁 Daily Tasks", "view_tasks"),
-                    Markup.button.callback("🔄 Refresh", "refresh_stats"),
-                ],
-            ]),
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
+                    [{ text: "💰 Deposit DPS", callback_data: "deposit" }],
+                    [
+                        { text: "🎁 Tasks", callback_data: "tasks" },
+                        { text: "🔄 Refresh", callback_data: "refresh" }
+                    ]
+                ]
+            }
         });
     }
 
-    /* ================= START + REFERRAL ================= */
+    /* ========= start ========= */
 
     bot.start(async (ctx) => {
         const chatId = ctx.chat.id;
         const refBy = ctx.payload;
 
         let users = loadJSON(USERS_FILE);
-        let user = users.find((u) => u.chatId === chatId);
+        let user = users.find(u => u.chatId === chatId);
 
         if (!user) {
             let bonus = 0;
-
             if (refBy && refBy != chatId) {
-                const inviter = users.find((u) => u.chatId == refBy);
+                const inviter = users.find(u => u.chatId == refBy);
                 if (inviter) {
                     inviter.balance += 200;
                     inviter.referCount += 1;
                     bonus = 50;
-
-                    bot.telegram.sendMessage(
-                        refBy,
-                        "🎊 *Referral Bonus!*\nYou earned **200 DPS**",
-                        { parse_mode: "Markdown" }
-                    ).catch(() => {});
                 }
             }
-
-            user = {
-                chatId,
-                username: ctx.from.username || "User",
-                balance: bonus,
-                referCount: 0,
-                completedTasks: [],
-                joinedAt: new Date().toISOString(),
-            };
-
+            user = { chatId, balance: bonus, referCount: 0, completedTasks: [] };
             users.push(user);
             saveJSON(USERS_FILE, users);
         }
 
-        await ctx.replyWithMarkdown(
-            `👋 *Welcome to DPS Digital Wallet!*\n\n` +
-            `💎 Earn DPS by completing tasks\n` +
-            `👥 Refer friends & earn rewards\n` +
-            `🏦 Deposit via Bank or Crypto\n\n` +
-            `👇 *Use the buttons below to continue*`
-        );
-
-        await sendProfile(ctx, user);
-    });
-
-    /* ================= PROFILE COMMAND ================= */
-
-    bot.command("profile", (ctx) => {
-        const user = loadJSON(USERS_FILE).find(u => u.chatId === ctx.chat.id);
-        if (!user) return ctx.reply("❌ Profile not found");
         sendProfile(ctx, user);
     });
 
-    /* ================= TASK SYSTEM ================= */
+    /* ========= commands ========= */
 
-    bot.action("view_tasks", (ctx) => {
+    bot.command("profile", (ctx) => {
+        const user = loadJSON(USERS_FILE).find(u => u.chatId === ctx.chat.id);
+        if (!user) return ctx.reply("Profile not found");
+        sendProfile(ctx, user);
+    });
+
+    bot.command("tasks", (ctx) => showTasks(ctx));
+    bot.command("deposit", (ctx) => depositInfo(ctx));
+
+    /* ========= tasks ========= */
+
+    function showTasks(ctx) {
         const tasks = loadJSON(TASKS_FILE);
         const users = loadJSON(USERS_FILE);
-        const user = users.find(u => u.chatId === ctx.from.id);
+        const user = getUser(users, ctx.from.id);
 
         if (!tasks.length)
-            return ctx.answerCbQuery("No tasks available");
+            return ctx.reply("No tasks available");
 
-        const buttons = tasks.map(t => {
-            const done = user.completedTasks.includes(t.id);
-            return [
-                Markup.button.url(
-                    `${t.title} ${done ? "✅" : `(+${t.reward} DPS)`}`,
-                    t.url
-                ),
-                Markup.button.callback(
-                    done ? "Verified ✓" : "Verify",
-                    `v_${t.id}`
-                )
-            ];
-        });
+        const keyboard = tasks.map(t => [
+            { text: `${t.title} (+${t.reward} DPS)`, url: t.url },
+            { text: "Verify", callback_data: `v_${t.id}` }
+        ]);
 
-        ctx.editMessageCaption("🎁 *Complete tasks to earn DPS:*", {
+        ctx.reply("🎁 *Available Tasks*", {
             parse_mode: "Markdown",
-            ...Markup.inlineKeyboard(buttons),
+            reply_markup: { inline_keyboard: keyboard }
         });
-    });
+    }
+
+    bot.action("tasks", (ctx) => showTasks(ctx));
 
     bot.action(/v_(.+)/, (ctx) => {
         const taskId = ctx.match[1];
         let users = loadJSON(USERS_FILE);
-        let user = users.find(u => u.chatId === ctx.from.id);
+        let user = getUser(users, ctx.from.id);
         const task = loadJSON(TASKS_FILE).find(t => t.id === taskId);
 
         if (!task) return ctx.answerCbQuery("Invalid task");
@@ -171,36 +148,111 @@ export default function initEuroBot() {
         user.completedTasks.push(taskId);
         saveJSON(USERS_FILE, users);
 
-        ctx.reply(`✅ *Task completed!* You earned **${task.reward} DPS**`, {
-            parse_mode: "Markdown",
-        });
+        ctx.answerCbQuery("Task completed");
     });
 
-    /* ================= REFRESH ================= */
+    /* ========= deposit ========= */
 
-    bot.action("refresh_stats", async (ctx) => {
+    function depositInfo(ctx) {
+        ctx.reply(
+            "💰 Deposit DPS\n\n" +
+            "Pakistan: JazzCash / EasyPaisa\n" +
+            "India: UPI\n" +
+            "Global: USDT (TRC20)\n\n" +
+            "Send payment proof here."
+        );
+    }
+
+    bot.action("deposit", (ctx) => depositInfo(ctx));
+
+    /* ========= refresh ========= */
+
+    bot.action("refresh", async (ctx) => {
         const user = loadJSON(USERS_FILE).find(u => u.chatId === ctx.from.id);
         try { await ctx.deleteMessage(); } catch {}
         sendProfile(ctx, user);
     });
 
-    /* ================= DEPOSIT ================= */
+    /* ========= INLINE P2P TRANSFER (RESTORED) ========= */
 
-    bot.action("buy_euro", (ctx) => {
-        ctx.replyWithMarkdown(
-            `💰 *Deposit DPS*\n\n` +
-            `🇵🇰 Pakistan: JazzCash / EasyPaisa\n` +
-            `🇮🇳 India: UPI\n` +
-            `🌍 Global: USDT (TRC20)\n\n` +
-            `📤 Send screenshot here for approval`
+    bot.on("inline_query", async (ctx) => {
+        const amount = parseInt(ctx.inlineQuery.query);
+        if (!amount || amount <= 0) return ctx.answerInlineQuery([]);
+
+        await ctx.answerInlineQuery([{
+            type: "article",
+            id: String(Date.now()),
+            title: `Send ${amount} DPS`,
+            input_message_content: {
+                message_text:
+                    `💸 *DPS Transfer*\n\n` +
+                    `You are sending *${amount} DPS*.\n\n` +
+                    `Click the button below to claim.`,
+                parse_mode: "Markdown"
+            },
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "📥 Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]
+                ]
+            }
+        }], { cache_time: 0 });
+    });
+
+    bot.action(/claim_(\d+)_(\d+)/, (ctx) => {
+        const amount = Number(ctx.match[1]);
+        const senderId = Number(ctx.match[2]);
+
+        let users = loadJSON(USERS_FILE);
+        let sender = getUser(users, senderId);
+        let receiver = getUser(users, ctx.from.id);
+
+        if (ctx.from.id === senderId)
+            return ctx.answerCbQuery("You cannot claim your own transfer");
+
+        if (senderId !== ADMIN_ID && sender.balance < amount)
+            return ctx.answerCbQuery("Insufficient balance");
+
+        if (senderId !== ADMIN_ID) sender.balance -= amount;
+        receiver.balance += amount;
+
+        saveJSON(USERS_FILE, users);
+
+        ctx.editMessageText(
+            `✅ Transfer successful!\n${amount} DPS credited.`,
+            { parse_mode: "Markdown" }
         );
     });
 
-    /* ================= LAUNCH ================= */
+    /* ========= admin ========= */
+
+    bot.command("total", (ctx) => {
+        if (ctx.from.id !== ADMIN_ID) return;
+        ctx.reply(`Total users: ${loadJSON(USERS_FILE).length}`);
+    });
+
+    bot.command("addtask", (ctx) => {
+        if (ctx.from.id !== ADMIN_ID) return;
+
+        const p = ctx.message.text.split("|");
+        if (p.length < 4)
+            return ctx.reply("Usage: /addtask id | title | reward | url");
+
+        let tasks = loadJSON(TASKS_FILE);
+        tasks.push({
+            id: p[0].replace("/addtask", "").trim(),
+            title: p[1].trim(),
+            reward: parseInt(p[2]),
+            url: p[3].trim()
+        });
+        saveJSON(TASKS_FILE, tasks);
+        ctx.reply("Task added");
+    });
+
+    /* ========= launch ========= */
 
     bot.launch();
-    console.log("✅ Telegram Bot FULLY ACTIVE");
+    console.log("Telegram bot started with inline transfer enabled");
 
-    process.once("SIGINT", () => bot.stop("SIGINT"));
-    process.once("SIGTERM", () => bot.stop("SIGTERM"));
+    process.once("SIGINT", () => bot.stop());
+    process.once("SIGTERM", () => bot.stop());
 }
