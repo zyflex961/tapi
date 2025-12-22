@@ -5,7 +5,7 @@ import 'dotenv/config'; // انوائرمنٹ ویری ایبلز کے لیے
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
-import initEuroBot from "./telegram.js"; // آپ کی ٹیلی گرام بوٹ فائل
+import initEuroBot from "./Telegram.js"; // آپ کی ٹیلی گرام بوٹ فائل
 
 const app = express();
 const PORT = 4355;
@@ -107,3 +107,4 @@ app.listen(PORT, () => {
 // پروسیس کو محفوظ طریقے سے بند کرنے کے لیے
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
