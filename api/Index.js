@@ -1,11 +1,30 @@
 import express from "express";
+import { Telegraf } from "telegraf"; // ٹیلی گرام لائبریری
+import 'dotenv/config'; // انوائرمنٹ ویری ایبلز کے لیے
 
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
+import initEuroBot from "./telegram.js"; // آپ کی ٹیلی گرام بوٹ فائل
 
 const app = express();
 const PORT = 4355;
+
+/* =====================================================
+   TELEGRAM BOT INITIALIZATION
+===================================================== */
+// بوٹ ٹوکن .env فائل سے لیا جائے گا
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// بوٹ کی تمام لاجک کو انیشلائز کریں
+initEuroBot(bot);
+
+// بوٹ کو لانچ کریں
+bot.launch().then(() => {
+    console.log("🤖 DPS Telegram Bot: Connected & Running");
+}).catch((err) => {
+    console.error("❌ Telegram Bot Error:", err);
+});
 
 /* =====================================================
    ALLOWED ORIGINS
@@ -14,7 +33,6 @@ const allowedOrigins = [
   "http://localhost:4321",
   "http://127.0.0.1:4321",
   "http://localhost:4323",
-  // "http://127.0.0.1:4323",
   "http://localhost:4355",
   "http://127.0.0.1:4355",
   "http://localhost:8888",
@@ -26,7 +44,7 @@ const allowedOrigins = [
 ];
 
 /* =====================================================
-   CORS HEADERS FUNCTION (AS-IS)
+   CORS HEADERS FUNCTION
 ===================================================== */
 function corsHeaders(origin) {
   if (allowedOrigins.includes(origin)) {
@@ -42,7 +60,7 @@ function corsHeaders(origin) {
 }
 
 /* =====================================================
-   GLOBAL CORS GATE (ENTRY POINT)
+   GLOBAL CORS GATE
 ===================================================== */
 app.use((req, res, next) => {
   const origin = req.headers.origin;
@@ -52,12 +70,10 @@ app.use((req, res, next) => {
     res.setHeader(key, value);
   });
 
-  // Preflight
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
 
-  // Block if origin not allowed
   if (origin && !allowedOrigins.includes(origin)) {
     return res.status(403).json({
       success: false,
@@ -69,26 +85,25 @@ app.use((req, res, next) => {
 });
 
 /* =====================================================
-   ROUTE MAPPING (GATEWAY LOGIC)
+   ROUTE MAPPING
 ===================================================== */
 
-// Health check
 app.get("/", (req, res) => {
-  res.end("Custom API Gateway Running");
+  res.end("Custom API Gateway & Telegram Bot Running");
 });
 
-// 🟢 Catalog → local backend
 app.use("/v2/dapp/catalog", Catalog);
-
-// Swap → Omniston (inside Swap.js)
 app.use("/swap/ton", Swap);
-
-// Anything else → Proxy (MyTonWallet style)
 app.use(Proxy);
 
 /* =====================================================
    START SERVER
 ===================================================== */
 app.listen(PORT, () => {
-  console.log(`API Gateway running on port 🚀 http://localhost:${4355}/v2/dapp/catalog`);
+  console.log(`🚀 API Gateway running on: http://localhost:${PORT}`);
+  console.log(`📂 Catalog: http://localhost:${PORT}/v2/dapp/catalog`);
 });
+
+// پروسیس کو محفوظ طریقے سے بند کرنے کے لیے
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
