@@ -55,10 +55,7 @@ Invite friends and earn 200 DPS per referral.`,
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            {
-                                text: "🚀 Open DPS Wallet App",
-                                url: WEB_APP_URL
-                            }
+                            { text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }
                         ],
                         [
                             { text: "🎁 Tasks", callback_data: "tasks" },
@@ -124,10 +121,7 @@ Use the buttons below to continue.`,
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            {
-                                text: "🚀 Open DPS Wallet App",
-                                url: WEB_APP_URL
-                            }
+                            { text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }
                         ],
                         [
                             { text: "👤 My Profile", callback_data: "profile" },
@@ -146,7 +140,8 @@ Use the buttons below to continue.`,
        BASIC COMMANDS
     ========================= */
     bot.command("profile", (ctx) => {
-        const user = load(USERS_FILE).find(u => u.chatId === ctx.chat.id);
+        const users = load(USERS_FILE);
+        const user = users.find(u => u.chatId === ctx.chat.id);
         if (user) sendProfile(ctx, user);
     });
 
@@ -154,12 +149,14 @@ Use the buttons below to continue.`,
     bot.command("deposit", (ctx) => ctx.reply("Use the Deposit button."));
 
     bot.action("profile", (ctx) => {
-        const user = load(USERS_FILE).find(u => u.chatId === ctx.from.id);
+        const users = load(USERS_FILE);
+        const user = users.find(u => u.chatId === ctx.from.id);
         if (user) sendProfile(ctx, user);
     });
 
     bot.action("refresh", (ctx) => {
-        const user = load(USERS_FILE).find(u => u.chatId === ctx.from.id);
+        const users = load(USERS_FILE);
+        const user = users.find(u => u.chatId === ctx.from.id);
         if (user) sendProfile(ctx, user);
     });
 
@@ -171,21 +168,13 @@ Use the buttons below to continue.`,
         const users = load(USERS_FILE);
         const user = users.find(u => u.chatId === ctx.from.id);
 
-        if (!tasks.length) {
-            return ctx.answerCbQuery("No tasks available.");
-        }
+        if (!tasks.length) return ctx.answerCbQuery("No tasks available.");
 
         const buttons = tasks.map(t => {
             const done = user.completedTasks.includes(t.id);
             return [
-                Markup.button.url(
-                    `${t.title} ${done ? "✅" : `(+${t.reward} DPS)`}`,
-                    t.url
-                ),
-                Markup.button.callback(
-                    done ? "Verified" : "Verify",
-                    `verify_${t.id}`
-                )
+                Markup.button.url(`${t.title} ${done ? "✅" : `(+${t.reward} DPS)`}`, t.url),
+                Markup.button.callback(done ? "Verified" : "Verify", `verify_${t.id}`)
             ];
         });
 
@@ -196,7 +185,7 @@ Use the buttons below to continue.`,
 
     bot.action(/verify_(.+)/, (ctx) => {
         const taskId = ctx.match[1];
-        const users = load(USERS_FILE);
+        let users = load(USERS_FILE);
         const tasks = load(TASKS_FILE);
 
         const user = users.find(u => u.chatId === ctx.from.id);
@@ -228,7 +217,7 @@ Supported:
     });
 
     /* =========================
-       INLINE P2P TRANSFER
+       INLINE P2P TRANSFER - FIXED
     ========================= */
     bot.on("inline_query", async (ctx) => {
         const q = ctx.inlineQuery.query.trim();
@@ -237,6 +226,12 @@ Supported:
 
         const amount = parseInt(match[1]);
         if (amount <= 0) return;
+
+        // ✅ fresh load users
+        const users = load(USERS_FILE);
+        const sender = users.find(u => u.chatId === ctx.from.id);
+
+        if (!sender || sender.balance < amount) return ctx.answerInlineQuery([], { cache_time: 1 });
 
         await ctx.answerInlineQuery(
             [
@@ -250,15 +245,12 @@ Supported:
 
 You are sending ${amount} DPS.
 
-Click the button below to claim.`,
+Click the button below to claim.`
                     },
                     reply_markup: {
                         inline_keyboard: [
                             [
-                                {
-                                    text: "✅ Claim DPS",
-                                    callback_data: `claim_${amount}_${ctx.from.id}`
-                                }
+                                { text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }
                             ]
                         ]
                     }
@@ -273,18 +265,15 @@ Click the button below to claim.`,
         const senderId = parseInt(ctx.match[2]);
         const receiverId = ctx.from.id;
 
-        if (senderId === receiverId) {
-            return ctx.answerCbQuery("❌ You cannot claim your own transfer.");
-        }
+        if (senderId === receiverId) return ctx.answerCbQuery("❌ You cannot claim your own transfer.");
 
+        // ✅ fresh load users
         let users = load(USERS_FILE);
         const sender = users.find(u => u.chatId === senderId);
-
-        if (!sender || sender.balance < amount) {
-            return ctx.answerCbQuery("❌ Insufficient balance.");
-        }
-
         let receiver = users.find(u => u.chatId === receiverId);
+
+        if (!sender || sender.balance < amount) return ctx.answerCbQuery("❌ Insufficient balance.");
+
         if (!receiver) {
             receiver = {
                 chatId: receiverId,
@@ -318,9 +307,7 @@ ${amount} DPS transferred successfully.`
         if (ctx.from.id !== ADMIN_ID) return;
 
         const parts = ctx.message.text.split("|");
-        if (parts.length < 5) {
-            return ctx.reply("Usage: /addtask|id|title|reward|url");
-        }
+        if (parts.length < 5) return ctx.reply("Usage: /addtask|id|title|reward|url");
 
         const [, id, title, reward, url] = parts;
 
