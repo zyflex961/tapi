@@ -1,11 +1,11 @@
 {
-  "name": "backend",
+  "name": "tapi",
   "version": "1.0.0",
   "description": "custom API backend",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js"
+    "start": "node api/index.js"
   },
   "keywords": [],
   "author": "",
