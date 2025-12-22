@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "chatId": 8230113306,
+    "username": "Admin",
+    "balance": 1500000,
+    "referCount": 0,
+    "completedTasks": []
+  }
+]
