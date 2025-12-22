@@ -18,6 +18,9 @@ export default function initEuroBot() {
     const USERS_FILE = path.join(process.cwd(), "users.json");
     const TASKS_FILE = path.join(process.cwd(), "tasks.json");
 
+    /* =========================
+       HELPERS
+    ========================= */
     const load = (file, def = []) => {
         if (!fs.existsSync(file)) return def;
         try {
@@ -37,7 +40,7 @@ export default function initEuroBot() {
         const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;
 
         await ctx.reply(
-            `💎 DPS DIGITAL WALLET
+`💎 DPS DIGITAL WALLET
 ━━━━━━━━━━━━━━━━━━━━
 
 🆔 Account ID: ${user.chatId}
@@ -53,8 +56,8 @@ Invite friends and earn 200 DPS per referral.`,
                     inline_keyboard: [
                         [
                             {
-                                text: "🚀 Open Wallet App",
-                                web_app: { url: WEB_APP_URL }
+                                text: "🚀 Open DPS Wallet App",
+                                url: WEB_APP_URL
                             }
                         ],
                         [
@@ -90,10 +93,9 @@ Invite friends and earn 200 DPS per referral.`,
                     inviter.referCount += 1;
                     bonus = 50;
 
-                    bot.telegram.sendMessage(
-                        refBy,
-                        "🎉 You earned 200 DPS from a referral!"
-                    ).catch(() => {});
+                    bot.telegram
+                        .sendMessage(refBy, "🎉 You earned 200 DPS from a referral!")
+                        .catch(() => {});
                 }
             }
 
@@ -110,22 +112,56 @@ Invite friends and earn 200 DPS per referral.`,
         }
 
         await ctx.reply(
-            "👋 Welcome to DPS Digital Wallet!\n\nEarn DPS by referrals, tasks and transfers."
-        );
+`👋 Welcome to DPS Digital Wallet
 
-        await sendProfile(ctx, user);
+Earn DPS via:
+• Referrals
+• Tasks
+• P2P Transfers
+
+Use the buttons below to continue.`,
+            {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: "🚀 Open DPS Wallet App",
+                                url: WEB_APP_URL
+                            }
+                        ],
+                        [
+                            { text: "👤 My Profile", callback_data: "profile" },
+                            { text: "🎁 Tasks", callback_data: "tasks" }
+                        ],
+                        [
+                            { text: "💰 Deposit", callback_data: "deposit" }
+                        ]
+                    ]
+                }
+            }
+        );
     });
 
     /* =========================
-       COMMANDS
+       BASIC COMMANDS
     ========================= */
     bot.command("profile", (ctx) => {
         const user = load(USERS_FILE).find(u => u.chatId === ctx.chat.id);
         if (user) sendProfile(ctx, user);
     });
 
-    bot.command("tasks", (ctx) => ctx.answerCbQuery?.() || ctx.reply("Use the Tasks button."));
-    bot.command("deposit", (ctx) => ctx.reply("Use the Deposit button below."));
+    bot.command("tasks", (ctx) => ctx.reply("Use the Tasks button."));
+    bot.command("deposit", (ctx) => ctx.reply("Use the Deposit button."));
+
+    bot.action("profile", (ctx) => {
+        const user = load(USERS_FILE).find(u => u.chatId === ctx.from.id);
+        if (user) sendProfile(ctx, user);
+    });
+
+    bot.action("refresh", (ctx) => {
+        const user = load(USERS_FILE).find(u => u.chatId === ctx.from.id);
+        if (user) sendProfile(ctx, user);
+    });
 
     /* =========================
        TASK SYSTEM
@@ -182,66 +218,97 @@ Invite friends and earn 200 DPS per referral.`,
     ========================= */
     bot.action("deposit", (ctx) => {
         ctx.reply(
-            `💰 DPS Deposit
+`💰 DPS Deposit
 
 Send payment proof to admin.
-Supported: Bank / Crypto (USDT TRC20)`
+Supported:
+• Bank Transfer
+• Crypto (USDT TRC20)`
         );
     });
 
     /* =========================
-       INLINE TRANSFER (P2P)
+       INLINE P2P TRANSFER
     ========================= */
-    bot.on("inline_query", (ctx) => {
-        const amount = parseInt(ctx.inlineQuery.query);
-        if (!amount || amount <= 0) return ctx.answerInlineQuery([]);
+    bot.on("inline_query", async (ctx) => {
+        const q = ctx.inlineQuery.query.trim();
+        const match = q.match(/^(\d+)\s*dps?$/i);
+        if (!match) return ctx.answerInlineQuery([], { cache_time: 1 });
 
-        ctx.answerInlineQuery([
-            {
-                type: "article",
-                id: Date.now().toString(),
-                title: `Send ${amount} DPS`,
-                input_message_content: {
-                    message_text: `💸 I am sending you ${amount} DPS`
-                },
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: "Claim DPS",
-                                callback_data: `claim_${amount}_${ctx.from.id}`
-                            }
+        const amount = parseInt(match[1]);
+        if (amount <= 0) return;
+
+        await ctx.answerInlineQuery(
+            [
+                {
+                    type: "article",
+                    id: `dps_${Date.now()}`,
+                    title: `💸 Send ${amount} DPS`,
+                    input_message_content: {
+                        message_text:
+`💸 DPS Transfer
+
+You are sending ${amount} DPS.
+
+Click the button below to claim.`,
+                    },
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: "✅ Claim DPS",
+                                    callback_data: `claim_${amount}_${ctx.from.id}`
+                                }
+                            ]
                         ]
-                    ]
+                    }
                 }
-            }
-        ]);
+            ],
+            { cache_time: 0 }
+        );
     });
 
-    bot.action(/claim_(\d+)_(\d+)/, (ctx) => {
+    bot.action(/claim_(\d+)_(\d+)/, async (ctx) => {
         const amount = parseInt(ctx.match[1]);
         const senderId = parseInt(ctx.match[2]);
+        const receiverId = ctx.from.id;
 
-        const users = load(USERS_FILE);
+        if (senderId === receiverId) {
+            return ctx.answerCbQuery("❌ You cannot claim your own transfer.");
+        }
+
+        let users = load(USERS_FILE);
         const sender = users.find(u => u.chatId === senderId);
-        const receiver =
-            users.find(u => u.chatId === ctx.from.id) ||
-            users[users.push({
-                chatId: ctx.from.id,
+
+        if (!sender || sender.balance < amount) {
+            return ctx.answerCbQuery("❌ Insufficient balance.");
+        }
+
+        let receiver = users.find(u => u.chatId === receiverId);
+        if (!receiver) {
+            receiver = {
+                chatId: receiverId,
+                username: ctx.from.username || "User",
                 balance: 0,
                 referCount: 0,
                 completedTasks: []
-            }) - 1];
-
-        if (!sender || sender.balance < amount) {
-            return ctx.answerCbQuery("Insufficient balance.");
+            };
+            users.push(receiver);
         }
 
         sender.balance -= amount;
         receiver.balance += amount;
         save(USERS_FILE, users);
 
-        ctx.editMessageText(`✅ ${amount} DPS transferred successfully.`);
+        try {
+            await ctx.editMessageText(
+`✅ Transfer Complete
+
+${amount} DPS transferred successfully.`
+            );
+        } catch (e) {}
+
+        await ctx.answerCbQuery("✅ DPS received!");
     });
 
     /* =========================
@@ -250,10 +317,12 @@ Supported: Bank / Crypto (USDT TRC20)`
     bot.command("addtask", (ctx) => {
         if (ctx.from.id !== ADMIN_ID) return;
 
-        const [, id, title, reward, url] = ctx.message.text.split("|");
-        if (!id || !title || !reward || !url) {
+        const parts = ctx.message.text.split("|");
+        if (parts.length < 5) {
             return ctx.reply("Usage: /addtask|id|title|reward|url");
         }
+
+        const [, id, title, reward, url] = parts;
 
         const tasks = load(TASKS_FILE);
         tasks.push({
@@ -262,8 +331,8 @@ Supported: Bank / Crypto (USDT TRC20)`
             reward: parseInt(reward),
             url: url.trim()
         });
-        save(TASKS_FILE, tasks);
 
+        save(TASKS_FILE, tasks);
         ctx.reply("✅ Task added.");
     });
 
