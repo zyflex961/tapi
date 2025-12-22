@@ -1,27 +1,30 @@
 import express from "express";
-import { Telegraf } from "telegraf"; // ٹیلی گرام لائبریری
-import 'dotenv/config'; // انوائرمنٹ ویری ایبلز کے لیے
+import { Telegraf } from "telegraf"; 
+import 'dotenv/config'; 
 
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
-import initEuroBot from "./Telegram.js"; // آپ کی ٹیلی گرام بوٹ فائل
+import initEuroBot from "./Telegram.js"; // فائل کا نام اور کیس (Case) چیک کر لیں
 
 const app = express();
-const PORT = 4355;
+
+/* =====================================================
+   PORT SETTING (رینڈر کے لیے انتہائی ضروری)
+===================================================== */
+// رینڈر اپنی مرضی کی پورٹ process.env.PORT میں دیتا ہے
+const PORT = process.env.PORT || 4355; 
 
 /* =====================================================
    TELEGRAM BOT INITIALIZATION
 ===================================================== */
-// بوٹ ٹوکن .env فائل سے لیا جائے گا
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// بوٹ کی تمام لاجک کو انیشلائز کریں
+// بوٹ لاجک شروع کریں
 initEuroBot(bot);
 
-// بوٹ کو لانچ کریں
 bot.launch().then(() => {
-    console.log("🤖 DPS Telegram Bot: Connected & Running");
+    console.log("🤖 DPS Telegram Bot: Live & Connected");
 }).catch((err) => {
     console.error("❌ Telegram Bot Error:", err);
 });
@@ -32,11 +35,6 @@ bot.launch().then(() => {
 const allowedOrigins = [
   "http://localhost:4321",
   "http://127.0.0.1:4321",
-  "http://localhost:4323",
-  "http://localhost:4355",
-  "http://127.0.0.1:4355",
-  "http://localhost:8888",
-  "http://127.0.0.1:8888",
   "https://walletdpstg.netlify.app",
   "https://wallet-multisend.vercel.app",
   "https://walletweb-delta.vercel.app",
@@ -44,7 +42,7 @@ const allowedOrigins = [
 ];
 
 /* =====================================================
-   CORS HEADERS FUNCTION
+   CORS HEADERS & GATEWAY LOGIC (AS-IS)
 ===================================================== */
 function corsHeaders(origin) {
   if (allowedOrigins.includes(origin)) {
@@ -59,9 +57,6 @@ function corsHeaders(origin) {
   return { "Access-Control-Allow-Origin": "null" };
 }
 
-/* =====================================================
-   GLOBAL CORS GATE
-===================================================== */
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const headers = corsHeaders(origin);
@@ -75,10 +70,7 @@ app.use((req, res, next) => {
   }
 
   if (origin && !allowedOrigins.includes(origin)) {
-    return res.status(403).json({
-      success: false,
-      error: "Origin not allowed",
-    });
+    return res.status(403).json({ success: false, error: "Origin not allowed" });
   }
 
   next();
@@ -89,7 +81,7 @@ app.use((req, res, next) => {
 ===================================================== */
 
 app.get("/", (req, res) => {
-  res.end("Custom API Gateway & Telegram Bot Running");
+  res.send("<h1>DPS API Gateway & Telegram Bot is Running!</h1>");
 });
 
 app.use("/v2/dapp/catalog", Catalog);
@@ -99,13 +91,12 @@ app.use(Proxy);
 /* =====================================================
    START SERVER
 ===================================================== */
-app.listen(PORT, () => {
-  
-  console.log(`📂 Catalog: http://localhost:${PORT}/v2/dapp/catalog`);
+// رینڈر کے لیے "0.0.0.0" پر بائنڈ کرنا اور متحرک پورٹ استعمال کرنا لازمی ہے
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server is running on port: ${PORT}`);
+  console.log(`📂 Catalog Access: https://tapi-27fd.onrender.com/v2/dapp/catalog`);
 });
 
-// پروسیس کو محفوظ طریقے سے بند کرنے کے لیے
+// بوٹ کو محفوظ طریقے سے بند کرنے کے لیے
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
-
