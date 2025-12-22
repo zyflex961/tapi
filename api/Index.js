@@ -100,11 +100,12 @@ app.use(Proxy);
    START SERVER
 ===================================================== */
 app.listen(PORT, () => {
-  console.log(`🚀 API Gateway running on: http://localhost:${PORT}`);
+  
   console.log(`📂 Catalog: http://localhost:${PORT}/v2/dapp/catalog`);
 });
 
 // پروسیس کو محفوظ طریقے سے بند کرنے کے لیے
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
 
