@@ -1,291 +1,244 @@
-import { Telegraf, Markup } from "telegraf";
-import fs from "fs";
-import path from "path";
-import "dotenv/config";
-
-export default function initEuroBot() {
-  const BOT_TOKEN = process.env.BOT_TOKEN;
-  if (!BOT_TOKEN) {
-    console.log("❌ BOT_TOKEN missing");
-    return;
-  }
-
-  const bot = new Telegraf(BOT_TOKEN);
-
-  const ADMIN_ID = 8230113306;
-  const WEB_APP_URL = "https://walletdps.vercel.app";
-
-  const USERS_FILE = path.join(process.cwd(), "api", "users.json");
-  const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");
-
-  /* =========================
-     FILE HELPERS
-  ========================= */
-  const load = (file, def = []) => {
-    if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, JSON.stringify(def, null, 2));
-      return def;
-    }
-    try {
-      return JSON.parse(fs.readFileSync(file, "utf8"));
-    } catch {
-      return def;
-    }
-  };
-
-  const save = (file, data) =>
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-
-  /* =========================
-     PROFILE
-  ========================= */
-  async function sendProfile(ctx, user) {
-    const users = load(USERS_FILE);
-    const freshUser = users.find(u => String(u.chatId) === String(user.chatId));
-
-    let balance = freshUser ? freshUser.balance : 0;
-    if (String(user.chatId) === String(ADMIN_ID)) {
-      balance = 9012800;
-    }
-
-    const referrals = freshUser ? freshUser.referCount : 0;
-    const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;
-
-    const text =
-`💎 DPS DIGITAL WALLET PROFILE
-━━━━━━━━━━━━━━━━━━━━
-🆔 Account ID: ${user.chatId}
-💰 Balance: ${balance} DPS
-👥 Referrals: ${referrals}
-
-🔗 Referral Link:
-${refLink}
-
-Invite friends and earn 200 DPS per referral.`;
-
-    await ctx.reply(text, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
-          [
-            { text: "🎁 Tasks", callback_data: "tasks" },
-            { text: "💰 Deposit", callback_data: "deposit" }
-          ],
-          [{ text: "🔄 Refresh", callback_data: "refresh" }]
-        ]
-      }
-    });
-  }
-
-  /* =========================
-     START + REFERRAL
-  ========================= */
-  bot.start(async (ctx) => {
-    const chatId = ctx.chat.id;
-    const refBy = ctx.payload;
-
-    let users = load(USERS_FILE);
-    let user = users.find(u => String(u.chatId) === String(chatId));
-
-    if (!user) {
-      let bonus = 0;
-
-      if (refBy && refBy !== String(chatId)) {
-        const inviter = users.find(u => String(u.chatId) === String(refBy));
-        if (inviter) {
-          inviter.balance += 200;
-          inviter.referCount += 1;
-          bonus = 50;
-          bot.telegram.sendMessage(refBy, "🎉 You earned 200 DPS from a referral!").catch(()=>{});
-        }
-      }
-
-      user = {
-        chatId,
-        username: ctx.from.username || "User",
-        balance: bonus,
-        referCount: 0,
-        completedTasks: []
-      };
-
-      users.push(user);
-      save(USERS_FILE, users);
-    }
-
-    await ctx.reply(
-      "👋 Welcome to DPS Digital Wallet",
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
-            [
-              { text: "👤 My Profile", callback_data: "profile" },
-              { text: "🎁 Tasks", callback_data: "tasks" }
-            ],
-            [{ text: "💰 Deposit", callback_data: "deposit" }]
-          ]
-        }
-      }
-    );
-
-    await sendProfile(ctx, user);
-  });
-
-  bot.action("profile", async (ctx) => {
-    const user = load(USERS_FILE).find(u => String(u.chatId) === String(ctx.from.id));
-    if (user) await sendProfile(ctx, user);
-  });
-
-  bot.action("refresh", async (ctx) => {
-    try { await ctx.deleteMessage(); } catch {}
-    const user = load(USERS_FILE).find(u => String(u.chatId) === String(ctx.from.id));
-    if (user) await sendProfile(ctx, user);
-  });
-
-  /* =========================
-     INLINE DPS TRANSFER
-  ========================= */
-  bot.on("inline_query", async (ctx) => {
-    const q = ctx.inlineQuery.query.trim();
-    if (!/^\d+$/.test(q)) return;
-
-    const amount = parseInt(q);
-    const users = load(USERS_FILE);
-    const sender = users.find(u => String(u.chatId) === String(ctx.from.id));
-
-    if (
-      String(ctx.from.id) !== String(ADMIN_ID) &&
-      (!sender || sender.balance < amount)
-    ) return;
-
-    await ctx.answerInlineQuery([{
-      type: "article",
-      id: String(Date.now()),
-      title: `💸 Send ${amount} DPS`,
-      input_message_content: {
-        message_text: `💸 DPS Transfer\n\nAmount: ${amount} DPS`
-      },
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]
-        ]
-      }
-    }], { cache_time: 0 });
-  });
-
-  bot.action(/claim_(\d+)_(\d+)/, async (ctx) => {
-    const amount = parseInt(ctx.match[1]);
-    const senderId = ctx.match[2];
-    const receiverId = ctx.from.id;
-
-    if (String(senderId) === String(receiverId))
-      return ctx.answerCbQuery("❌ You cannot claim your own transfer.");
-
-    let users = load(USERS_FILE);
-    let sender = users.find(u => String(u.chatId) === String(senderId));
-    let receiver = users.find(u => String(u.chatId) === String(receiverId));
-
-    if (String(senderId) !== String(ADMIN_ID)) {
-      if (!sender || sender.balance < amount)
-        return ctx.answerCbQuery("❌ Insufficient balance.");
-      sender.balance -= amount;
-    }
-
-    if (!receiver) {
-      receiver = {
-        chatId: receiverId,
-        username: ctx.from.username || "User",
-        balance: amount,
-        referCount: 0,
-        completedTasks: []
-      };
-      users.push(receiver);
-    } else {
-      receiver.balance += amount;
-    }
-
-    save(USERS_FILE, users);
-    ctx.editMessageText(`✅ ${amount} DPS received successfully`);
-    ctx.answerCbQuery("Success");
-  });
-
-  /* =========================
-     TASKS
-  ========================= */
-  bot.action("tasks", async (ctx) => {
-    const tasks = load(TASKS_FILE);
-    const users = load(USERS_FILE);
-    const user = users.find(u => String(u.chatId) === String(ctx.from.id));
-
-    if (!tasks.length)
-      return ctx.answerCbQuery("No tasks available");
-
-    const keyboard = tasks.map(t => {
-      const done = user.completedTasks.includes(t.id);
-      return [
-        [
-          { text: `${t.title} ${done ? "✅" : `(+${t.reward})`}`, url: t.url },
-          { text: done ? "Done" : "Verify", callback_data: `verify_${t.id}` }
-        ]
-      ];
-    });
-
-    ctx.editMessageText("🎁 Complete tasks:", {
-      reply_markup: { inline_keyboard: keyboard }
-    });
-  });
-
-  bot.action(/verify_(.+)/, async (ctx) => {
-    const taskId = ctx.match[1];
-    const tasks = load(TASKS_FILE);
-    const task = tasks.find(t => t.id === taskId);
-    let users = load(USERS_FILE);
-    const user = users.find(u => String(u.chatId) === String(ctx.from.id));
-
-    if (!task || user.completedTasks.includes(taskId))
-      return ctx.answerCbQuery("Already completed");
-
-    user.balance += task.reward;
-    user.completedTasks.push(taskId);
-    save(USERS_FILE, users);
-
-    ctx.reply(`✅ Task completed! +${task.reward} DPS`);
-  });
-
-  /* =========================
-     DEPOSIT
-  ========================= */
-  bot.action("deposit", (ctx) => {
-    ctx.reply(
-      "💰 DPS Deposit\n\nThis feature is under development.\nSupported soon: Bank & Crypto"
-    );
-  });
-
-  bot.command("total", (ctx) => {
-    if (String(ctx.from.id) === String(ADMIN_ID)) {
-      ctx.reply(`👥 Total users: ${load(USERS_FILE).length}`);
-    }
-  });
-
-  bot.command("addtask", (ctx) => {
-    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
-
-    const parts = ctx.message.text.split("|");
-    if (parts.length < 5)
-      return ctx.reply("Usage: /addtask |id| title| reward| url");
-
-    const tasks = load(TASKS_FILE);
-    tasks.push({
-      id: parts[1].trim(),
-      title: parts[2].trim(),
-      reward: parseInt(parts[3]),
-      url: parts[4].trim()
-    });
-
-    save(TASKS_FILE, tasks);
-    ctx.reply("✅ Task added");
-  });
-
-  bot.launch();
-  console.log("✅ DPS Telegram Bot Started");
-       }
+import { Telegraf, Markup } from "telegraf";  
+import fs from "fs";  
+import path from "path";  
+import "dotenv/config";  
+  
+export default function initEuroBot() {  
+  const BOT_TOKEN = process.env.BOT_TOKEN;  
+  if (!BOT_TOKEN) {  
+    console.log("❌ BOT_TOKEN missing");  
+    return;  
+  }  
+  
+  const bot = new Telegraf(BOT_TOKEN);  
+  const ADMIN_ID = 8230113306;  
+  const WEB_APP_URL = "https://t.me/DPSwallet_bot?startapp";  
+  
+  Const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");  
+  const USERS_FILE = path.join(process.cwd(), "api", "users.json");  
+  
+    
+  const load = (file, def = []) => {  
+    if (!fs.existsSync(file)) {  
+        fs.writeFileSync(file, JSON.stringify(def));  
+        return def;  
+    }  
+    try {  
+      const data = fs.readFileSync(file, "utf8");  
+      return JSON.parse(data);  
+    } catch (err) {  
+      return def;  
+    }  
+  };  
+  
+  const save = (file, data) =>  
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));  
+  
+  /* =========================  
+     PROFILE MESSAGE (Admin Balance Fixed)  
+  ========================= */  
+  async function sendProfile(ctx, user) {  
+    const users = load(USERS_FILE);  
+    const freshUser = users.find(u => String(u.chatId) === String(user.chatId));  
+      
+    // ایڈمن کے لیے بیلنس 1 ملین فکس کر دیا گیا ہے  
+    let balance = freshUser ? freshUser.balance : 0;  
+    if (String(user.chatId) === String(ADMIN_ID)) {  
+      balance = 9012800;  
+    }  
+  
+    const referrals = freshUser ? freshUser.referCount : 0;  
+    const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;  
+      
+    // ---- 👆 end of admin profille section 👆 -------  
+  
+      
+    const profileText = `💎 **DPS DIGITAL WALLET PROFILE**  
+━━━━━━━━━━━━━━━━━━━━  
+🆔 Account ID: ${user.chatId}  
+💰 Balance: ${balance} DPS  
+👥 Referrals: ${referrals}  
+  
+🔗 Referral Link:  
+${refLink}  
+  
+Invite friends and earn 200 DPS per referral.`;  
+  
+    await ctx.reply(profileText, {  
+        reply_markup: {  
+          inline_keyboard: [  
+            [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],  
+            [{ text: "🎁 Tasks", callback_data: "tasks" }, { text: "💰 Deposit", callback_data: "deposit" }],  
+            [{ text: "🔄 Refresh", callback_data: "refresh" }]  
+          ]  
+        }  
+      }  
+    );  
+  }  
+  
+  /* =========================  
+     /START + REFERRAL  
+  ========================= */  
+  bot.start(async (ctx) => {  
+    const chatId = ctx.chat.id;  
+    const refBy = ctx.payload;  
+    let users = load(USERS_FILE);  
+    let user = users.find(u => String(u.chatId) === String(chatId));  
+  
+    if (!user) {  
+      let bonus = 0;  
+      if (refBy && String(refBy) !== String(chatId)) {  
+        const inviter = users.find(u => String(u.chatId) === String(refBy));  
+        if (inviter) {  
+          inviter.balance += 200;  
+          inviter.referCount += 1;  
+          bonus = 50;  
+          bot.telegram.sendMessage(refBy, "🎉 You earned 200 DPS from a referral!").catch(() => {});  
+        }  
+      }  
+      user = { chatId, username: ctx.from.username || "User", balance: bonus, referCount: 0, completedTasks: [] };  
+      users.push(user);  
+      save(USERS_FILE, users);  
+    }  
+  
+    await ctx.reply(`👋 Welcome to DPS Digital Wallet/nExperience the next generation of digital finance. Seamlessly send, receive, and swap tokens with professional-grade security and blazing-fast speed/n/n💎 Start building your DPS portfolio today! `, {  
+        reply_markup: {  
+          inline_keyboard: [  
+            [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],  
+            [{ text: "👤 My Profile", callback_data: "profile" }, { text: "🎁 Tasks", callback_data: "tasks" }],  
+            [{ text: "💰 Deposit", callback_data: "deposit" }]  
+          ]  
+        }  
+      }  
+    );  
+    // خود بخود پروفایل دکھائیں  
+    await sendProfile(ctx, user);  
+  });  
+  
+  bot.action("profile", (ctx) => {  
+    const users = load(USERS_FILE);  
+    const user = users.find(u => String(u.chatId) === String(ctx.from.id));  
+    if (user) sendProfile(ctx, user);  
+  });  
+  
+  bot.action("refresh", async (ctx) => {  
+    const users = load(USERS_FILE);  
+    const user = users.find(u => String(u.chatId) === String(ctx.from.id));  
+    try { await ctx.deleteMessage(); } catch(e) {}  
+    if (user) sendProfile(ctx, user);  
+  });  
+  
+  /* =================  
+  INLINE TRANSFER (Admin Unlimited Fixed)   
+  ================== */  
+  bot.on("inline_query", async (ctx) => {  
+    const q = ctx.inlineQuery.query.trim();  
+    const match = q.match(/^(\d+)$/i);  
+    if (!match) return;  
+  
+    const amount = parseInt(match[1]);  
+    const users = load(USERS_FILE);  
+    let sender = users.find(u => String(u.chatId) === String(ctx.from.id));  
+      
+    // ایڈمن کے لیے چیک ختم کر دیا تاکہ وہ ہمیشہ بھیج سکے  
+    let canSend = false;  
+    if (String(ctx.from.id) === String(ADMIN_ID)) {  
+      canSend = true;  
+    } else if (sender && sender.balance >= amount) {  
+      canSend = true;  
+    }  
+  
+    if (!canSend) return;  
+  
+    await ctx.answerInlineQuery([{  
+        type: "article",  
+        id: `dps_${Date.now()}`,  
+        title: `💸 Send ${amount} $DPS `,  
+        input_message_content: { message_text: `💸 DPS Transfer\n\nYou are sending ${amount} Dps on ton \nClick the button below to claim. amount and check profile see your total balance.` },  
+        reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]] }  
+    }], { cache_time: 0 });  
+  });  
+  
+  bot.action(/claim_(\d+)_(\d+)/, async (ctx) => {  
+    const amount = parseInt(ctx.match[1]);  
+    const senderId = ctx.match[2];  
+    const receiverId = ctx.from.id;  
+  
+    if (String(senderId) === String(receiverId)) return ctx.answerCbQuery("❌ You cannot claim your own transfer.");  
+  
+    let users = load(USERS_FILE);  
+    let sIdx = users.findIndex(u => String(u.chatId) === String(senderId));  
+    let rIdx = users.findIndex(u => String(u.chatId) === String(receiverId));  
+  
+    // ایڈمن سے کٹوتی نہیں ہوگی، یوزر سے ہوگی  
+    if (String(senderId) !== String(ADMIN_ID)) {  
+      if (sIdx === -1 || users[sIdx].balance < amount) return ctx.answerCbQuery("❌ Insufficient balance.");  
+      users[sIdx].balance -= amount;  
+    }  
+  
+    if (rIdx === -1) {  
+      users.push({ chatId: receiverId, username: ctx.from.username || "User", balance: amount, referCount: 0, completedTasks: [] });  
+    } else {  
+      users[rIdx].balance += amount;  
+    }  
+  
+    save(USERS_FILE, users);  
+    ctx.editMessageText(`✅ Transfer Complete\n\n${amount} DPS transferred successfully.`).catch(()=>{});  
+    ctx.answerCbQuery("✅ DPS received!");  
+  });  
+  
+  /* =========================  
+     OTHER LOGIC (TASKS/ADMIN)  
+  ========================= */  
+  bot.action("tasks", (ctx) => {  
+    const tasks = load(TASKS_FILE);  
+    const users = load(USERS_FILE);  
+    const user = users.find(u => String(u.chatId) === String(ctx.from.id));  
+    if (!tasks.length) return ctx.answerCbQuery("No tasks available.");  
+    const buttons = tasks.map(t => {  
+      const done = user.completedTasks.includes(t.id);  
+      return [  
+        Markup.button.url(`${t.title} ${done ? "✅" : `(+${t.reward} DPS)`}`, t.url),  
+        Markup.button.callback(done ? "Verified" : "Verify", `verify_${t.id}`)  
+      ];  
+    });  
+    ctx.editMessageText("🎁 Complete tasks to earn DPS:", { reply_markup: { inline_keyboard: buttons } });  
+  });  
+  
+  bot.action(/verify_(.+)/, (ctx) => {  
+    const taskId = ctx.match[1];  
+    let users = load(USERS_FILE);  
+    const task = load(TASKS_FILE).find(t => t.id === taskId);  
+    const uIdx = users.findIndex(u => String(u.chatId) === String(ctx.from.id));  
+    if (uIdx === -1 || !task || users[uIdx].completedTasks.includes(taskId)) return ctx.answerCbQuery("Already done.");  
+    users[uIdx].balance += task.reward;  
+    users[uIdx].completedTasks.push(taskId);  
+    save(USERS_FILE, users);  
+    ctx.reply(`✅ Task completed! +${task.reward} DPS`);  
+  });  
+  
+    
+/* ===================================  
+ P2P DEPOSIT Section.  
+==========================================*/  
+  bot.action("deposit", (ctx) => {  
+    ctx.reply("💰 **DPS Deposit**\n\n Dear user, we are currently developing this feature and will deploy it live very soon for your convenience.\nSupported: Bank & Crypto");  
+  });  
+  
+  bot.command("total", (ctx) => {  
+    if (String(ctx.from.id) === String(ADMIN_ID)) ctx.reply(`👥 Total users: ${load(USERS_FILE).length}`);  
+  });  
+  
+  bot.command("addtask", (ctx) => {  
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;  
+    const parts = ctx.message.text.split("|");  
+    if (parts.length < 5) return ctx.reply("Usage: /addtask |id| title| reward| url");  
+    const tasks = load(TASKS_FILE);  
+    tasks.push({ id: parts[1].trim(), title: parts[2].trim(), reward: parseInt(parts[3]), url: parts[4].trim() });  
+    save(TASKS_FILE, tasks);  
+    ctx.reply("✅ Task added.");  
+  });  
+  
+  bot.launch();  
+  console.log("✅ Telegram Bot Started");  
+              }
