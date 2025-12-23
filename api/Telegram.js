@@ -45,7 +45,7 @@ export default function initEuroBot() {
     // ایڈمن کے لیے بیلنس 1 ملین فکس کر دیا گیا ہے  
     let balance = freshUser ? freshUser.balance : 0;  
     if (String(user.chatId) === String(ADMIN_ID)) {  
-      balance = 9012800;  
+      balance = 900000.3840;  
     }  
   
     const referrals = freshUser ? freshUser.referCount : 0;  
@@ -57,13 +57,13 @@ export default function initEuroBot() {
     const profileText = `💎 **DPS DIGITAL WALLET PROFILE**  
 ━━━━━━━━━━━━━━━━━━━━  
 🆔 Account ID: ${user.chatId}  
-💰 Balance: ${balance} DPS  
+💰 Balance: ${balance} $DPS  
 👥 Referrals: ${referrals}  
   
 🔗 Referral Link:  
 ${refLink}  
   
-Invite friends and earn 200 DPS per referral.`;  
+Invite friends and earn 200 DPS per referral. Join our leader ship`;  
   
     await ctx.reply(profileText, {  
         reply_markup: {  
@@ -91,10 +91,10 @@ Invite friends and earn 200 DPS per referral.`;
       if (refBy && String(refBy) !== String(chatId)) {  
         const inviter = users.find(u => String(u.chatId) === String(refBy));  
         if (inviter) {  
-          inviter.balance += 200;  
+          inviter.balance += 50;  
           inviter.referCount += 1;  
-          bonus = 50;  
-          bot.telegram.sendMessage(refBy, "🎉 You earned 200 DPS from a referral!").catch(() => {});  
+          bonus = 150;  
+          bot.telegram.sendMessage(refBy, "🎉 Congratulations 🎉 You earned 200 DPS from a referral!").catch(() => {});  
         }  
       }  
       user = { chatId, username: ctx.from.username || "User", balance: bonus, referCount: 0, completedTasks: [] };  
@@ -223,7 +223,7 @@ Invite friends and earn 200 DPS per referral.`;
  P2P DEPOSIT Section.  
 ==========================================*/  
   bot.action("deposit", (ctx) => {  
-    ctx.reply("💰 **DPS Deposit**\n\n Dear user, we are currently developing this feature and will deploy it live very soon for your convenience.\nSupported: Bank & Crypto");  
+    ctx.reply(" <b>💰 DPS Deposit</b><br><br>Dear User,<br><br>We are currently developing this feature and will be deploying it live very soon for your convenience.<br><br><b>Supported Deposit Methods:</b><br>• Bank Transfer<br>• Crypto Currency<br><br>Thank you for your patience and continued support.<br><b>— DPS Team</b>");  
   });  
   
   bot.command("total", (ctx) => {  
@@ -233,11 +233,11 @@ Invite friends and earn 200 DPS per referral.`;
   bot.command("addtask", (ctx) => {  
     if (String(ctx.from.id) !== String(ADMIN_ID)) return;  
     const parts = ctx.message.text.split("|");  
-    if (parts.length < 5) return ctx.reply("Usage: /addtask |id| title| reward| url");  
+    if (parts.length < 5) return ctx.reply("Usage: /addtask |01| join telegram channel| 500| url");  
     const tasks = load(TASKS_FILE);  
     tasks.push({ id: parts[1].trim(), title: parts[2].trim(), reward: parseInt(parts[3]), url: parts[4].trim() });  
     save(TASKS_FILE, tasks);  
-    ctx.reply("✅ Task added.");  
+    ctx.reply("✅ Task added Successful.");  
   });  
   
   bot.launch();  
