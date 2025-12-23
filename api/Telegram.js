@@ -12,7 +12,7 @@ export default function initEuroBot() {
 
   const bot = new Telegraf(BOT_TOKEN);
   const ADMIN_ID = 8230113306;
-  const WEB_APP_URL = "https://t.me/DPSwallet_bot?startapp";
+  const WEB_APP_URL = "https://walletdps.vercel.app";
 
   
 Const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");
@@ -46,13 +46,13 @@ const TASKS_FILE = path.join(process.cwd(), "api", "users.json");
     // ایڈمن کے لیے بیلنس 1 ملین فکس کر دیا گیا ہے
     let balance = freshUser ? freshUser.balance : 0;
     if (String(user.chatId) === String(ADMIN_ID)) {
-      balance = 1000000;
+      balance = 9012800;
     }
 
     const referrals = freshUser ? freshUser.referCount : 0;
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;
 
-    const profileText = `💎 DPS DIGITAL WALLET
+    const profileText = `💎 **DPS DIGITAL WALLET PROFILE**
 ━━━━━━━━━━━━━━━━━━━━
 
 🆔 Account ID: ${user.chatId}
@@ -101,7 +101,7 @@ Invite friends and earn 200 DPS per referral.`;
       save(USERS_FILE, users);
     }
 
-    await ctx.reply(`👋 Welcome to DPS Digital Wallet`, {
+    await ctx.reply(`👋 Welcome to DPS Digital Wallet your can sending receiving swapping and stacking without any problem`, {
         reply_markup: {
           inline_keyboard: [
             [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
@@ -128,9 +128,9 @@ Invite friends and earn 200 DPS per referral.`;
     if (user) sendProfile(ctx, user);
   });
 
-  /* =========================
-     INLINE TRANSFER (Admin Unlimited Fixed)
-  ========================= */
+  /* =================
+  INLINE TRANSFER (Admin Unlimited Fixed) 
+  ================== */
   bot.on("inline_query", async (ctx) => {
     const q = ctx.inlineQuery.query.trim();
     const match = q.match(/^(\d+)$/i);
@@ -153,8 +153,8 @@ Invite friends and earn 200 DPS per referral.`;
     await ctx.answerInlineQuery([{
         type: "article",
         id: `dps_${Date.now()}`,
-        title: `💸 Send ${amount} DPS`,
-        input_message_content: { message_text: `💸 DPS Transfer\n\nYou are sending ${amount} DPS.\nClick the button below to claim.` },
+        title: `💸 Send ${amount} $DPS `,
+        input_message_content: { message_text: `💸 DPS Transfer\n\nYou are sending ${amount} Dps on ton \nClick the button below to claim. amount and check profile see your total balance.` },
         reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]] }
     }], { cache_time: 0 });
   });
@@ -218,7 +218,7 @@ Invite friends and earn 200 DPS per referral.`;
   });
 
   bot.action("deposit", (ctx) => {
-    ctx.reply("💰 DPS Deposit\n\nSend payment proof to admin.\nSupported: Bank & Crypto");
+    ctx.reply("💰 **DPS Deposit**\n\n Dear user, we are currently developing this feature and will deploy it live very soon for your convenience.\nSupported: Bank & Crypto");
   });
 
   bot.command("total", (ctx) => {
