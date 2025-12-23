@@ -14,9 +14,8 @@ export default function initEuroBot() {
   const ADMIN_ID = 8230113306;
   const WEB_APP_URL = "https://walletdps.vercel.app";
 
-  
-Const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");
-const TASKS_FILE = path.join(process.cwd(), "api", "users.json");
+  Const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");
+  const TASKS_FILE = path.join(process.cwd(), "api", "users.json");
 
 
   
@@ -51,10 +50,12 @@ const TASKS_FILE = path.join(process.cwd(), "api", "users.json");
 
     const referrals = freshUser ? freshUser.referCount : 0;
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${user.chatId}`;
+    
+    // ---- 👆 end of admin profille section 👆 -------
 
+    
     const profileText = `💎 **DPS DIGITAL WALLET PROFILE**
 ━━━━━━━━━━━━━━━━━━━━
-
 🆔 Account ID: ${user.chatId}
 💰 Balance: ${balance} DPS
 👥 Referrals: ${referrals}
@@ -217,6 +218,10 @@ Invite friends and earn 200 DPS per referral.`;
     ctx.reply(`✅ Task completed! +${task.reward} DPS`);
   });
 
+  
+/* ===================================
+ P2P DEPOSIT Section.
+==========================================*/
   bot.action("deposit", (ctx) => {
     ctx.reply("💰 **DPS Deposit**\n\n Dear user, we are currently developing this feature and will deploy it live very soon for your convenience.\nSupported: Bank & Crypto");
   });
@@ -228,7 +233,7 @@ Invite friends and earn 200 DPS per referral.`;
   bot.command("addtask", (ctx) => {
     if (String(ctx.from.id) !== String(ADMIN_ID)) return;
     const parts = ctx.message.text.split("|");
-    if (parts.length < 5) return ctx.reply("Usage: /addtask|id|title|reward|url");
+    if (parts.length < 5) return ctx.reply("Usage: /addtask |id| title| reward| url");
     const tasks = load(TASKS_FILE);
     tasks.push({ id: parts[1].trim(), title: parts[2].trim(), reward: parseInt(parts[3]), url: parts[4].trim() });
     save(TASKS_FILE, tasks);
