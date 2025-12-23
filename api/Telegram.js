@@ -54,7 +54,7 @@ export default function initEuroBot() {
     // ---- 👆 end of admin profille section 👆 -------  
   
       
-    const profileText = `💎 **DPS DIGITAL WALLET PROFILE**  
+    const profileText = `💎 DPS DIGITAL WALLET PROFILE  
 ━━━━━━━━━━━━━━━━━━━━  
 🆔 Account ID: ${user.chatId}  
 💰 Balance: ${balance} $DPS  
@@ -155,10 +155,16 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
         type: "article",  
         id: `dps_${Date.now()}`,  
         title: `💸 Send ${amount} $DPS `,  
+            thumb_url: "https://walletdps.vercel.app/logo.png",
+      thumb_width: 152,
+      thumb_height: 152,
         input_message_content: { message_text: `💸 DPS Transfer\n\nYou are sending ${amount} Dps on ton \nClick the button below to claim. amount and check profile see your total balance.` },  
         reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]] }  
     }], { cache_time: 0 });  
-  });  
+  }
+        
+        
+        );  
   
   bot.action(/claim_(\d+)_(\d+)/, async (ctx) => {  
     const amount = parseInt(ctx.match[1]);  
