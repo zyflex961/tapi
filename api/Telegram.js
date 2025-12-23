@@ -15,7 +15,7 @@ export default function initEuroBot() {
   const WEB_APP_URL = "https://t.me/DPSwallet_bot?startapp";  
   
   Const TASKS_FILE = path.join(process.cwd(), "tasks.json");  
-  const TASKS_FILE = path.join(process.cwd(), "users.json");  
+  const USERS_FILE = path.join(process.cwd(), "users.json");  
   
   
     
