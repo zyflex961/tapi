@@ -14,9 +14,12 @@ export default function initEuroBot() {
   const ADMIN_ID = 8230113306;
   const WEB_APP_URL = "https://t.me/DPSwallet_bot?startapp";
 
-  const USERS_FILE = path.join(process.cwd(), "users.json");
-  const TASKS_FILE = path.join(process.cwd(), "tasks.json");
+  
+Const TASKS_FILE = path.join(process.cwd(), "api", "tasks.json");
+const TASKS_FILE = path.join(process.cwd(), "api", "users.json");
 
+
+  
   const load = (file, def = []) => {
     if (!fs.existsSync(file)) {
         fs.writeFileSync(file, JSON.stringify(def));
