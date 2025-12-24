@@ -1,38 +1,32 @@
-[
-  {
-    "id": "1",
-    "type": "youtube",
-    "description": "Subscribe to our YouTube channel and watch the latest videos.",
-    "reward_amount": 12,
-    "link": "https://youtube.com/example-channel"
-  },
-  {
-    "id": "2",
-    "type": "telegram_channel",
-    "description": "Join our official Telegram channel to receive updates.",
-    "reward_amount": 50,
-    "link": "https://t.me/example_channel"
-  },
-  {
-    "id": "3",
-    "type": "twitter",
-    "description": "Follow our Twitter account and stay updated with new posts.",
-    "reward_amount": 100,
-    "link": "https://twitter.com/example_account"
-  },
-  {
-    "id": "4",
-    "type": "tiktok",
-    "description": "Follow our TikTok account and like recent videos.",
-    "reward_amount": 30,
-    "link": "https://tiktok.com/@example_account"
-  },
-  {
-    "id": "5",
-    "type": "telegram_group",
-    "description": "Join our Telegram group and become part of the community.",
-    "reward_amount": 40,
-    "link": "https://t.me/example_group"
-  }
-]
-
+{
+  "tasks": [
+    {
+      "id": "01",
+      "type": "telegram",
+      "title": "Join our official Telegram channel",
+      "reward": 100,
+      "url": "https://t.me/example_channel"
+    },
+    {
+      "id": "02",
+      "type": "youtube",
+      "title": "Subscribe to our YouTube channel",
+      "reward": 100,
+      "url": "https://youtube.com/example_channel"
+    },
+    {
+      "id": "03",
+      "type": "twitter",
+      "title": "Follow us on Twitter (X)",
+      "reward": 100,
+      "url": "https://twitter.com/example_profile"
+    },
+    {
+      "id": "04",
+      "type": "tiktok",
+      "title": "Follow our TikTok account",
+      "reward": 100,
+      "url": "https://www.tiktok.com/@example_account"
+    }
+  ]
+}
