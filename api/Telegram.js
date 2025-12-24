@@ -63,13 +63,13 @@ export default function initEuroBot() {
     const profileText = `💎 DPS DIGITAL WALLET PROFILE  
 ━━━━━━━━━━━━━━━━━━━━  
 🆔 Account ID: ${user.chatId}  
-💰 Balance: ${balance} $DPS  
+💰 Balance: ${balance} $DPS 
 👥 Referrals: ${referrals}  
   
 🔗 Referral Link:  
 ${refLink}  
   
-Invite friends and earn 200 DPS per referral. Join our leader ship`;  
+Invite friends and earn 100 DPS jetton per referral.`;  
   
     await ctx.reply(profileText, {  
         reply_markup: {  
@@ -97,10 +97,10 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       if (refBy && String(refBy) !== String(chatId)) {  
         const inviter = users.find(u => String(u.chatId) === String(refBy));  
         if (inviter) {  
-          inviter.balance += 50;  
+          inviter.balance += 150;  
           inviter.referCount += 1;  
           bonus = 150;  
-          bot.telegram.sendMessage(refBy, "🎉 Congratulations 🎉 You earned 200 DPS from a referral!").catch(() => {});  
+          bot.telegram.sendMessage(refBy, "🎉 Congratulations 🎉 You earned 150 DPS from a referral!").catch(() => {});  
         }  
       }  
       user = { chatId, username: ctx.from.username || "User", balance: bonus, referCount: 0, completedTasks: [] };  
@@ -147,14 +147,10 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     if (user) sendProfile(ctx, user);  
   });  
 
-    /* ==============================
-     PRO DPS INLINE TRANSFER SYSTEM (COMPLETE BLOCK)
-  =============================== */
-
- 
-    /* ========================================================
+  
+    /* ============================
      PRO DPS INLINE TRANSFER SYSTEM (UPDATED WITH REWARDS & WARNING)
-  =========================================================== */
+  ============================= */
 
   // 1. ان لائن کوئری (With Balance Warning)
   bot.on("inline_query", async (ctx) => {  
@@ -180,7 +176,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
           description: `✅ Ready to send this amount your payment is secured. New users get +50 bonus offer!`,
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
-            message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>Sender:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click the button below to claim. New users get 150 DPS welcome bonus! 🎁</i>`,
+            message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click the button below to claim. for New users get 100 DPS welcome bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
           reply_markup: { 
@@ -256,7 +252,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${senderId}`;
 
     const completionText = `✅ <b>💰 Transfer Successfully Received Thanks!</b>\n` +
-                           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
                            `🧑‍🦰 <b>From:</b> ${senderName}\n` +
                            `💰 <b>Amount:</b> ${amount} $DPS\n` +
                            `${isNewUser ? "🎁 <b>Bonus:</b> +50 DPS (New User)\n" : ""}` +
@@ -272,7 +268,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       }
     }).catch(() => {});  
 
-    await ctx.answerCbQuery(isNewUser ? "🎉 Success! +150 Welcome Bonus added!" : "Success! DPS added to wallet.");  
+    await ctx.answerCbQuery(isNewUser ? "🎉 congratulations Success! +150 Welcome Bonus added!" : "Success! DPS added to wallet.");  
   });
 
 
