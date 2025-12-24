@@ -226,7 +226,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🧑‍🦰 View Balance", url: `https://t.me/${ctx.botInfo.username}?start=${senderid}` }]
+          [{ text: "🧑‍🦰 View Balance", url: `https://t.me/${ctx.botInfo.username}?start=${senderId}` }]
         ]
       }
     }).catch(() => {});  
