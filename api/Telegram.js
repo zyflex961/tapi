@@ -283,32 +283,141 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
   /* =========================  
      OTHER LOGIC (TASKS/ADMIN)  
   ========================= */  
-  bot.action("tasks", (ctx) => {  
+  /* ========================================================
+     MASTER CONTROL CENTER (ADMIN & USER COMMANDS)
+  =========================================================== */
+
+  // 1. Master Command List (Admin Only)
+  bot.command("cmd", (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const adminCommands = `
+🛠 <b>ADMIN CONTROL PANEL</b>
+━━━━━━━━━━━━━━━━━━━━
+📊 <code>/total</code> - System statistics & total balance
+🏆 <code>/leaderboard</code> - Top referrers list
+🔍 <code>/finduser @username</code> - Find user data by username
+🎁 <code>/give @username [amount]</code> - Add balance to user
+⚠️ <code>/take @username [amount]</code> - Deduct balance from user
+📢 <code>/broadcast [text]</code> - Send message to all users
+📝 <code>/addtask |ID|Title|Reward|URL</code> - Create new task
+
+👤 <b>USER COMMANDS</b>
+━━━━━━━━━━━━━━━━━━━━
+🚀 <code>/start</code> - Main profile menu
+📊 <code>/stats</code> - Personal balance & referral stats
+❓ <code>/help</code> - Guide and support`;
+    ctx.replyWithHTML(adminCommands);
+  });
+
+  // 2. System Stats (Total Users & Total Balance)
+  bot.command("total", (ctx) => {  
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const users = load(USERS_FILE);
+    const totalBalance = users.reduce((sum, u) => sum + (u.balance || 0), 0);
+    ctx.replyWithHTML(`📊 <b>DPS SYSTEM STATS</b>\n━━━━━━━━━━━━━━━━━━━━\n👥 Total Users: <b>${users.length}</b>\n💰 Total System Balance: <b>${totalBalance.toFixed(2)} DPS</b>`);
+  });
+
+  // 3. Give Balance by Username
+  bot.command("give", (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const parts = ctx.message.text.split(" ");
+    if (parts.length < 3) return ctx.reply("Usage: /give @username 100");
+
+    const username = parts[1].replace("@", "").toLowerCase();
+    const amount = parseFloat(parts[2]);
+    let users = load(USERS_FILE);
+    const uIdx = users.findIndex(u => u.username && u.username.toLowerCase() === username);
+
+    if (uIdx !== -1) {
+      users[uIdx].balance += amount;
+      save(USERS_FILE, users);
+      ctx.reply(`✅ Successfully added ${amount} DPS to @${username}`);
+      bot.telegram.sendMessage(users[uIdx].chatId, `🎁 Admin has added ${amount} DPS to your wallet!`).catch(() => {});
+    } else { ctx.reply("❌ User not found in database."); }
+  });
+
+  // 4. Deduct Balance by Username (Take)
+  bot.command("take", (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const parts = ctx.message.text.split(" ");
+    if (parts.length < 3) return ctx.reply("Usage: /take @username 100");
+
+    const username = parts[1].replace("@", "").toLowerCase();
+    const amount = parseFloat(parts[2]);
+    let users = load(USERS_FILE);
+    const uIdx = users.findIndex(u => u.username && u.username.toLowerCase() === username);
+
+    if (uIdx !== -1) {
+      users[uIdx].balance = Math.max(0, users[uIdx].balance - amount);
+      save(USERS_FILE, users);
+      ctx.reply(`⚠️ Successfully deducted ${amount} DPS from @${username}`);
+      bot.telegram.sendMessage(users[uIdx].chatId, `⚠️ Admin has deducted ${amount} DPS from your balance.`).catch(() => {});
+    } else { ctx.reply("❌ User not found."); }
+  });
+
+  // 5. Admin Leaderboard (Top Referrals)
+  bot.command("leaderboard", (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const users = load(USERS_FILE);
+    const topRefs = users.sort((a, b) => (b.referCount || 0) - (a.referCount || 0)).slice(0, 10);
+    let text = "🏆 <b>TOP 10 REFERRERS</b>\n━━━━━━━━━━━━━━━━━━━━\n";
+    topRefs.forEach((u, i) => {
+      text += `${i + 1}. @${u.username || "User"} — 👥 ${u.referCount || 0} Refers\n`;
+    });
+    ctx.replyWithHTML(text);
+  });
+
+  // 6. Broadcast (Global Message)
+  bot.command("broadcast", async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const msg = ctx.message.text.split(" ").slice(1).join(" ");
+    if (!msg) return ctx.reply("Usage: /broadcast Hello Everyone!");
+    const users = load(USERS_FILE);
+    ctx.reply(`📢 Sending broadcast to ${users.length} users...`);
+    users.forEach(u => {
+      bot.telegram.sendMessage(u.chatId, `📢 <b>MESSAGE FROM ADMIN</b>\n\n${msg}`, { parse_mode: "HTML" }).catch(() => {});
+    });
+  });
+
+  // 7. Find User Details
+  bot.command("finduser", (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;
+    const input = ctx.message.text.split(" ")[1];
+    if (!input) return ctx.reply("Usage: /finduser @username");
+    const username = input.replace("@", "").toLowerCase();
+    const users = load(USERS_FILE);
+    const user = users.find(u => u.username && u.username.toLowerCase() === username);
+    if (user) {
+      ctx.replyWithHTML(`👤 <b>USER FOUND</b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 ID: <code>${user.chatId}</code>\n👤 User: @${user.username}\n💰 Balance: ${user.balance} DPS\n👥 Refers: ${user.referCount}`);
+    } else { ctx.reply("❌ User not found in database."); }
+  });
+
+  /* ========================================================
+     PUBLIC USER COMMANDS (English)
+  =========================================================== */
+
+  bot.command("help", (ctx) => {
+    ctx.replyWithHTML(`<b>❓ How to use DPS Wallet</b>\n\n1️⃣ Use /start to view your profile.\n2️⃣ To send DPS, type <code>@bot_username amount</code> in any chat.\n3️⃣ Complete tasks to earn extra DPS.\n4️⃣ Invite friends using your referral link to earn 150 DPS bonus!`);
+  });
+
+  bot.command("stats", (ctx) => {
+    const users = load(USERS_FILE);
+    const user = users.find(u => String(u.chatId) === String(ctx.from.id));
+    if (user) {
+      ctx.replyWithHTML(`📊 <b>YOUR STATISTICS</b>\n━━━━━━━━━━━━━━━━━━━━\n💰 Balance: <b>${user.balance} DPS</b>\n👥 Total Referrals: <b>${user.referCount}</b>`);
+    }
+  });
+
+  bot.command("addtask", (ctx) => {  
+    if (String(ctx.from.id) !== String(ADMIN_ID)) return;  
+    const parts = ctx.message.text.split("|");  
+    if (parts.length < 5) return ctx.reply("Usage: /addtask |ID|Title|Reward|URL");  
     const tasks = load(TASKS_FILE);  
-    const users = load(USERS_FILE);  
-    const user = users.find(u => String(u.chatId) === String(ctx.from.id));  
-    if (!tasks.length) return ctx.answerCbQuery("No tasks available.");  
-    const buttons = tasks.map(t => {  
-      const done = user.completedTasks.includes(t.id);  
-      return [  
-        Markup.button.url(`${t.title} ${done ? "✅" : `(+${t.reward} DPS)`}`, t.url),  
-        Markup.button.callback(done ? "Verified" : "Verify", `verify_${t.id}`)  
-      ];  
-    });  
-    ctx.editMessageText("🎁 Complete tasks to earn DPS:", { reply_markup: { inline_keyboard: buttons } });  
-  });  
+    tasks.push({ id: parts[1].trim(), title: parts[2].trim(), reward: parseInt(parts[3]), url: parts[4].trim() });  
+    save(TASKS_FILE, tasks);  
+    ctx.reply("✅ Task added successfully.");  
+  });
   
-  bot.action(/verify_(.+)/, (ctx) => {  
-    const taskId = ctx.match[1];  
-    let users = load(USERS_FILE);  
-    const task = load(TASKS_FILE).find(t => t.id === taskId);  
-    const uIdx = users.findIndex(u => String(u.chatId) === String(ctx.from.id));  
-    if (uIdx === -1 || !task || users[uIdx].completedTasks.includes(taskId)) return ctx.answerCbQuery("Already done.");  
-    users[uIdx].balance += task.reward;  
-    users[uIdx].completedTasks.push(taskId);  
-    save(USERS_FILE, users);  
-    ctx.reply(`✅ Task completed! +${task.reward} DPS`);  
-  });  
   
     
 /* ===================================  
