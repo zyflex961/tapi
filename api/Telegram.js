@@ -166,8 +166,8 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     await ctx.answerInlineQuery([{  
         type: "article",  
         id: `dps_${Date.now()}`,  
-        title: `💸 Send ${amount} $DPS`,  
-        description: `Create a professional transfer of ${amount} DPS`,
+        title: `💸 Send ${amount} 💎 $DPS`,  
+        description: `💰 Create a professional transfer of 👉 ${amount} 💎DPS. its very easy and secure`,
         thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
         thumb_width: 100,
         thumb_height: 100,
@@ -220,7 +220,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
                            `👤 <b>From:</b> ${senderName}\n` +
                            `💰 <b>Amount:</b> ${amount} $DPS\n` +
                            `📅 <b>Status:</b> Completed\n\n` +
-                           `✨ <i>Thank you for using DPS Digital Wallet!</i>`;
+                           `✨ <i>It's very easy secure 🔐 Thank you for using $Dps Digital ton Wallet!</i>`;
 
     await ctx.editMessageText(completionText, {
       parse_mode: "HTML",
