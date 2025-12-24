@@ -143,52 +143,72 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     if (user) sendProfile(ctx, user);  
   });  
 
-    /* ========================================================
+    /* ==============================
      PRO DPS INLINE TRANSFER SYSTEM (COMPLETE BLOCK)
+  =============================== */
+
+ 
+    /* ========================================================
+     PRO DPS INLINE TRANSFER SYSTEM (UPDATED WITH REWARDS & WARNING)
   =========================================================== */
 
-  // 1. ان لائن کوئری (جب یوزر ٹائپ کرتا ہے: @bot 100)
+  // 1. ان لائن کوئری (With Balance Warning)
   bot.on("inline_query", async (ctx) => {  
     const q = ctx.inlineQuery.query.trim();  
     const match = q.match(/^(\d+)$/i);  
     if (!match) return;  
 
     const amount = parseInt(match[1]);  
-    const senderName = ctx.from.first_name || "User"; // سینڈر کا نام
+    const senderName = ctx.from.first_name || "User"; 
 
     const users = load(USERS_FILE);  
     let sender = users.find(u => String(u.chatId) === String(ctx.from.id));  
 
-    // ایڈمن یا بیلنس رکھنے والا یوزر ہی بھیج سکے گا
-    let canSend = (String(ctx.from.id) === String(ADMIN_ID)) || (sender && sender.balance >= amount);  
-    if (!canSend) return;  
+    const isAdmin = String(ctx.from.id) === String(ADMIN_ID);
+    const hasBalance = sender && sender.balance >= amount;
 
-    await ctx.answerInlineQuery([{  
-        type: "article",  
-        id: `dps_${Date.now()}`,  
-        title: `💸 Send ${amount} 💎 $DPS`,  
-        description: `💰 Create a professional transfer of ${amount} 💎 DPS. its very easy and secure 🔐`,
-        thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
-        thumb_width: 100,
-        thumb_height: 100,
-        input_message_content: { 
-          message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>Sender:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click the button below to claim these assets safely.</i>`,
-          parse_mode: "HTML"
-        },  
-        reply_markup: { 
-          inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${senderName}` }]] 
-        }  
-    }], { cache_time: 0 });  
+    if (isAdmin || hasBalance) {
+      // ✅ اگر بیلنس کافی ہے تو ٹرانسفر کارڈ دکھائیں
+      await ctx.answerInlineQuery([{  
+          type: "article",  
+          id: `dps_send_${Date.now()}`,  
+          title: `💸 Send ${amount} 💎 $DPS`,  
+          description: `✅ Ready to send. New users get +150 bonus!`,
+          thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
+          input_message_content: { 
+            message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>Sender:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click the button below to claim. New users get 150 DPS welcome bonus! 🎁</i>`,
+            parse_mode: "HTML"
+          },  
+          reply_markup: { 
+            inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${senderName}` }]] 
+          }  
+      }], { cache_time: 0 });
+    } else {
+      // ❌ اگر بیلنس کم ہے تو وارننگ کارڈ دکھائیں
+      await ctx.answerInlineQuery([{  
+          type: "article",  
+          id: `dps_low_balance_${Date.now()}`,  
+          title: `⚠️ Insufficient Balance`,  
+          description: `You need ${amount} DPS to send this.`,
+          thumb_url: "https://cdn-icons-png.flaticon.com/512/595/595067.png", 
+          input_message_content: { 
+            message_text: `⚠️ <b>Transaction Alert</b>\n━━━━━━━━━━━━━━━━━━━━\n❌ <b>Status:</b> Failed\n💰 <b>Reason:</b> Insufficient Balance\n\n<i>You don't have enough DPS. Please complete tasks to earn more.</i>`,
+            parse_mode: "HTML"
+          },
+          reply_markup: {
+            inline_keyboard: [[{ text: "🎁 Earn More DPS", url: `https://t.me/${ctx.botInfo.username}?start=tasks` }]]
+          }
+      }], { cache_time: 0 });
+    }
   });
 
-  // 2. کلیم ایکشن (جب رسیور بٹن دباتا ہے اور میسج رسید میں بدل جاتا ہے)
+  // 2. کلیم ایکشن (New User Reward & Referral Logic)
   bot.action(/claim_(\d+)_(\d+)_(.+)/, async (ctx) => {  
     const amount = parseInt(ctx.match[1]);  
     const senderId = ctx.match[2];
     const senderName = ctx.match[3];
     const receiverId = ctx.from.id;  
 
-    // خود کو کلیم کرنے سے روکنا
     if (String(senderId) === String(receiverId)) {
         return ctx.answerCbQuery("❌ You cannot claim your own transfer.", { show_alert: true });
     }
@@ -197,7 +217,6 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     let sIdx = users.findIndex(u => String(u.chatId) === String(senderId));  
     let rIdx = users.findIndex(u => String(u.chatId) === String(receiverId));  
 
-    // ایڈمن کے علاوہ دوسروں کے بیلنس سے کٹوتی
     if (String(senderId) !== String(ADMIN_ID)) {  
       if (sIdx === -1 || users[sIdx].balance < amount) {
           return ctx.answerCbQuery("❌ Transfer failed: Insufficient balance.", { show_alert: true });
@@ -205,40 +224,57 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       users[sIdx].balance -= amount;  
     }  
 
-    // رسیور کو رقم دینا
-    if (rIdx === -1) {  
-      users.push({ chatId: receiverId, username: ctx.from.username || "User", balance: amount, referCount: 0, completedTasks: [] });  
-    } else {  
-      users[rIdx].balance += amount;  
-    }  
+    let isNewUser = (rIdx === -1);
+    let totalToReceiver = amount;
+
+    if (isNewUser) {
+      totalToReceiver += 150; // رسیور کو 150 بونس
+      users.push({ 
+        chatId: receiverId, 
+        username: ctx.from.username || "User", 
+        balance: totalToReceiver, 
+        referCount: 0, 
+        completedTasks: [] 
+      });
+
+      if (sIdx !== -1) {
+        users[sIdx].balance += 150; // سینڈر کو 150 بونس
+        users[sIdx].referCount += 1;
+        bot.telegram.sendMessage(senderId, `🎉 Success! Someone joined via your transfer. You earned 150 DPS bonus!`).catch(() => {});
+      }
+    } else {
+      users[rIdx].balance += amount;
+    }
 
     save(USERS_FILE, users);  
 
-    // پروفیشنل فائنل میسج (رسید)
+    // سینڈر کا ریفرل لنک تاکہ رسیور اس کا ریفرل بن جائے
+    const refLink = `https://t.me/${ctx.botInfo.username}?start=${senderId}`;
+
     const completionText = `✅ <b>Transfer Successfully Received!</b>\n` +
                            `━━━━━━━━━━━━━━━━━━━━\n` +
                            `👤 <b>From:</b> ${senderName}\n` +
                            `💰 <b>Amount:</b> ${amount} $DPS\n` +
+                           `${isNewUser ? "🎁 <b>Bonus:</b> +150 DPS (New User)\n" : ""}` +
                            `📅 <b>Status:</b> Completed\n\n` +
-                           `✨ <i>It's very easy secure 🔐 Thank you for using $Dps Digital ton Wallet!</i>`;
+                           `✨ <i>Thank you for using DPS Digital Wallet!</i>`;
 
     await ctx.editMessageText(completionText, {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🧑‍🦰 View Balance", url: `https://t.me/${ctx.botInfo.username}?start=profile` }]
+          [{ text: "🧑‍🦰 View Balance", url: refLink }]
         ]
       }
     }).catch(() => {});  
 
-    await ctx.answerCbQuery("🎉 Success! DPS added to your wallet.");  
+    await ctx.answerCbQuery(isNewUser ? "🎉 Success! +150 Welcome Bonus added!" : "Success! DPS added to wallet.");  
   });
-  
 
 
 
 
-  
+
   
   /* =========================  
      OTHER LOGIC (TASKS/ADMIN)  
