@@ -145,7 +145,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
   
   /* =================  
   INLINE TRANSFER (Admin Unlimited Fixed)   
-  ================== */  
+  ================== 
   bot.on("inline_query", async (ctx) => {  
     const q = ctx.inlineQuery.query.trim();  
     const match = q.match(/^(\d+)$/i);  
@@ -206,7 +206,104 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     save(USERS_FILE, users);  
     ctx.editMessageText(`✅ Transfer Complete\n\n${amount} DPS transferred successfully.`).catch(()=>{});  
     ctx.answerCbQuery("✅ DPS received!");  
-  });  
+  });
+  ======old code inline end ====*/
+
+    /* ========================================================
+     SUCCESSFUL INLINE TRANSFER (With Dynamic View Balance Button)
+  =========================================================== */
+
+  // 1. ان لائن کوئری (Sending Section)
+  bot.on("inline_query", async (ctx) => {  
+    const q = ctx.inlineQuery.query.trim();  
+    const match = q.match(/^(\d+)$/i);  
+    if (!match) return;  
+
+    const amount = parseInt(match[1]);  
+    const users = load(USERS_FILE);  
+    let sender = users.find(u => String(u.chatId) === String(ctx.from.id));  
+
+    let canSend = false;  
+    if (String(ctx.from.id) === String(ADMIN_ID)) {  
+      canSend = true;  
+    } else if (sender && sender.balance >= amount) {  
+      canSend = true;  
+    }  
+
+    if (!canSend) return;  
+
+    await ctx.answerInlineQuery([{  
+        type: "article",  
+        id: `dps_${Date.now()}`,  
+        title: `💸 Send ${amount} $DPS`,  
+        thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
+        thumb_width: 100, // سائز 100x100 کر دیا گیا ہے
+        thumb_height: 100,
+        input_message_content: { 
+          message_text: `💸 <b>DPS Transfer</b>\n\nYou are sending <b>${amount} DPS</b> on TON.\nClick the button below to claim.`,
+          parse_mode: "HTML"
+        },  
+        reply_markup: { 
+          inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}` }]] 
+        }  
+    }], { cache_time: 0 });  
+  });
+
+  // 2. کلیم ایکشن (Receiving & Button Update Section)
+  bot.action(/claim_(\d+)_(\d+)/, async (ctx) => {  
+    const amount = parseInt(ctx.match[1]);  
+    const senderId = ctx.match[2];  
+    const receiverId = ctx.from.id;  
+
+    if (String(senderId) === String(receiverId)) {
+      return ctx.answerCbQuery("❌ You cannot claim your own transfer.");
+    }
+
+    let users = load(USERS_FILE);  
+    let sIdx = users.findIndex(u => String(u.chatId) === String(senderId));  
+    let rIdx = users.findIndex(u => String(u.chatId) === String(receiverId));  
+
+    // ایڈمن سے کٹوتی نہیں ہوگی، یوزر سے ہوگی (آپ کی اوریجنل لاجک)
+    if (String(senderId) !== String(ADMIN_ID)) {  
+      if (sIdx === -1 || users[sIdx].balance < amount) {
+        return ctx.answerCbQuery("❌ Insufficient balance.");
+      }
+      users[sIdx].balance -= amount;  
+    }  
+
+    // رسیور کا ڈیٹا اپ ڈیٹ کرنا
+    if (rIdx === -1) {  
+      users.push({ 
+        chatId: receiverId, 
+        username: ctx.from.username || "User", 
+        balance: amount, 
+        referCount: 0, 
+        completedTasks: [] 
+      });  
+    } else {  
+      users[rIdx].balance += amount;  
+    }  
+
+    save(USERS_FILE, users);  
+
+    // یہاں بٹن اپ ڈیٹ ہو رہا ہے: کلیم کے بعد "View Balance" کا بٹن
+    ctx.editMessageText(`✅ <b>Transfer Complete</b>\n\n${amount} DPS transferred successfully.`, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "👤 View Balance", callback_data: "profile" }]
+        ]
+      }
+    }).catch(() => {});  
+
+    ctx.answerCbQuery("✅ DPS received!");  
+  });
+  
+
+
+
+
+  
   
   /* =========================  
      OTHER LOGIC (TASKS/ADMIN)  
