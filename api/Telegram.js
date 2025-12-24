@@ -177,7 +177,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
           type: "article",  
           id: `dps_send_${Date.now()}`,  
           title: `💸 Send ${amount} 💎 $DPS`,  
-          description: `✅ Ready to send. New users get +150 bonus!`,
+          description: `✅ Ready to send this amount your payment is secured. New users get +50 bonus offer!`,
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
             message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>Sender:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click the button below to claim. New users get 150 DPS welcome bonus! 🎁</i>`,
@@ -244,7 +244,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       if (sIdx !== -1) {
         users[sIdx].balance += 150; // سینڈر کو 150 بونس
         users[sIdx].referCount += 1;
-        bot.telegram.sendMessage(senderId, `🎉 Success! Someone joined via your transfer. You earned 150 DPS bonus!`).catch(() => {});
+        bot.telegram.sendMessage(senderId, `🎉 congratulations Success! Someone joined via your transfer. You earned 100 DPS bonus!`).catch(() => {});
       }
     } else {
       users[rIdx].balance += amount;
@@ -255,13 +255,13 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     // سینڈر کا ریفرل لنک تاکہ رسیور اس کا ریفرل بن جائے
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${senderId}`;
 
-    const completionText = `✅ <b>Transfer Successfully Received!</b>\n` +
-                           `━━━━━━━━━━━━━━━━━━━━\n` +
-                           `👤 <b>From:</b> ${senderName}\n` +
+    const completionText = `✅ <b>💰 Transfer Successfully Received Thanks!</b>\n` +
+                           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                           `🧑‍🦰 <b>From:</b> ${senderName}\n` +
                            `💰 <b>Amount:</b> ${amount} $DPS\n` +
-                           `${isNewUser ? "🎁 <b>Bonus:</b> +150 DPS (New User)\n" : ""}` +
+                           `${isNewUser ? "🎁 <b>Bonus:</b> +50 DPS (New User)\n" : ""}` +
                            `📅 <b>Status:</b> Completed\n\n` +
-                           `✨ <i>Thank you for using DPS Digital Wallet!</i>`;
+                           `👍 <i>Thank you for using DPS Digital ton Wallet!</i>`;
 
     await ctx.editMessageText(completionText, {
       parse_mode: "HTML",
@@ -277,37 +277,35 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
 
 
 
-
-
   
-  /* =========================  
-     OTHER LOGIC (TASKS/ADMIN)  
-  ========================= */  
   /* ========================================================
      MASTER CONTROL CENTER (ADMIN & USER COMMANDS)
   =========================================================== */
 
-  // 1. Master Command List (Admin Only)
+  // 1. Master Command List (Admin Only) - Updated with Clickable Links
   bot.command("cmd", (ctx) => {
     if (String(ctx.from.id) !== String(ADMIN_ID)) return;
     const adminCommands = `
 🛠 <b>ADMIN CONTROL PANEL</b>
-━━━━━━━━━━━━━━━━━━━━
-📊 <code>/total</code> - System statistics & total balance
-🏆 <code>/leaderboard</code> - Top referrers list
-🔍 <code>/finduser @username</code> - Find user data by username
-🎁 <code>/give @username [amount]</code> - Add balance to user
-⚠️ <code>/take @username [amount]</code> - Deduct balance from user
-📢 <code>/broadcast [text]</code> - Send message to all users
-📝 <code>/addtask |ID|Title|Reward|URL</code> - Create new task
+━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 /total - System stats & total balance
+🏆 /leaderboard - Top referrers list
+🔍 /finduser - Find user data
+🎁 /give - Add balance to user
+⚠️ /take - Deduct balance from user
+📢 /broadcast - Send message to all
+📝 /addtask - Create new task
 
 👤 <b>USER COMMANDS</b>
 ━━━━━━━━━━━━━━━━━━━━
-🚀 <code>/start</code> - Main profile menu
-📊 <code>/stats</code> - Personal balance & referral stats
-❓ <code>/help</code> - Guide and support`;
+🚀 /start - Main profile menu
+📊 /stats - Personal balance & referrals
+❓ /help - Guide and support
+
+💡 <i>Tip: Click any command above to use it instantly.</i>`;
     ctx.replyWithHTML(adminCommands);
   });
+  
 
   // 2. System Stats (Total Users & Total Balance)
   bot.command("total", (ctx) => {  
