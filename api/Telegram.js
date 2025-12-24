@@ -102,7 +102,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       user = { chatId, username: ctx.from.username || "User", balance: bonus, referCount: 0, completedTasks: [] };  
       users.push(user);  
       save(USERS_FILE, users);  
-    } 
+    } ;
   
     
       
