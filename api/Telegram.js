@@ -13,6 +13,10 @@ export default function initEuroBot() {
   const bot = new Telegraf(BOT_TOKEN);  
   const ADMIN_ID = 8230113306;  
   const WEB_APP_URL = "https://t.me/DPSwallet_bot?startapp";  
+  const web_link = "https://walletdps.vercel.app/";
+
+
+  
   
   const TASKS_FILE = path.join(process.cwd(), "tasks.json");  
   const USERS_FILE = path.join(process.cwd(), "users.json");  
@@ -71,6 +75,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
         reply_markup: {  
           inline_keyboard: [  
             [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],  
+            [{ text: "🌐 Visit on Website 🌐", web_app: { url: web_link } }]
             [{ text: "🎁 Tasks", callback_data: "tasks" }, { text: "💰 Deposit", callback_data: "deposit" }],  
             [{ text: "🔄 Refresh", callback_data: "refresh" }]  
           ]  
@@ -114,6 +119,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     reply_markup: {
       inline_keyboard: [
         [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
+        [{ text: "🌐 Visit on Website 🌐", web_app: { url: web_link } }]
         [
           { text: "👤 My Profile", callback_data: "profile" },
           { text: "🎁 Tasks", callback_data: "tasks" }
