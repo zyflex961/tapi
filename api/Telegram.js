@@ -2,7 +2,7 @@ import { Telegraf, Markup } from "telegraf";
 import fs from "fs";  
 import path from "path";  
 import "dotenv/config";  
-  
+
 export default function initEuroBot() {  
   const BOT_TOKEN = process.env.BOT_TOKEN;  
   if (!BOT_TOKEN) {  
