@@ -227,10 +227,36 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     
 /* ===================================  
  P2P DEPOSIT Section.  
-==========================================*/  
+==========================================
   bot.action("deposit", (ctx) => {  
-    ctx.reply(" <b>💰 DPS Deposit</b><br><br>Dear User,<br><br>We are currently developing this feature and will be deploying it live very soon for your convenience.<br><br><b>Supported Deposit Methods:</b><br>• Bank Transfer<br>• Crypto Currency<br><br>Thank you for your patience and continued support.<br><b>— DPS Team</b>");  
+    ctx.reply(" 💰 DPS Deposit</b><br><br>Dear User,<br><br>We are currently developing this feature and will be deploying it live very soon for your convenience.<br><br><b>Supported Deposit Methods:</b><br>• Bank Transfer<br>• Crypto Currency<br><br>Thank you for your patience and continued support.<br><b>— DPS Team</b>");  
   });  
+====== */
+
+bot.action("deposit", async (ctx) => {
+  await ctx.replyWithHTML(
+    `<b>💰 DPS Deposit</b>
+
+Dear User,
+
+Thank you for your interest in depositing funds into your DPS Wallet.
+
+🚧 <b>Deposit feature is currently under development</b> and will be launched very soon to provide you with a secure and seamless experience.
+
+<b>🔐 Upcoming Supported Deposit Methods:</b>
+• Bank Transfer  
+• Cryptocurrency  
+
+<b>🤝 P2P Membership:</b>
+You can apply for our <b>P2P Membership</b> to start peer-to-peer transactions, allowing you to buy or sell DPS tokens directly with other users.
+
+We appreciate your patience and continued trust in DPS.
+
+<b>— DPS Team</b>`
+  );
+});
+
+  
   
   bot.command("total", (ctx) => {  
     if (String(ctx.from.id) === String(ADMIN_ID)) ctx.reply(`👥 Total users: ${load(USERS_FILE).length}`);  
