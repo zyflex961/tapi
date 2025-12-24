@@ -102,15 +102,12 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       save(USERS_FILE, users);  
     }  
   
-    await ctx.replyWithHTML(
-  `<b>👋 Welcome to DPS Digital Wallet</b>
-
-Your all-in-one secure platform to
-<b>Send</b>, <b>Receive</b>, <b>Swap</b>, and <b>Stake</b> digital assets with ease.
-
-Experience fast, reliable, and seamless transactions — all in one place.
-
-🚀 Tap below to get started and explore the DPS ecosystem.`,
+    
+      await ctx.replyWithHTML(
+  "<b>👋 Welcome to DPS Digital Wallet</b>\n\n" +
+  "Your secure all-in-one platform to <b>send</b>, <b>receive</b>, <b>swap</b> and <b>stake</b> digital assets with ease.\n\n" +
+  "Enjoy fast, reliable and seamless transactions in one powerful wallet.\n\n" +
+  "🚀 Tap below to get started and explore the DPS ecosystem.",
   {
     reply_markup: {
       inline_keyboard: [
