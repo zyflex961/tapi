@@ -24,6 +24,8 @@ export default function initEuroBot() {
         fs.writeFileSync(file, JSON.stringify(def));  
         return def;  
     }  
+
+    
     try {  
       const data = fs.readFileSync(file, "utf8");  
       return JSON.parse(data);  
@@ -100,15 +102,15 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       user = { chatId, username: ctx.from.username || "User", balance: bonus, referCount: 0, completedTasks: [] };  
       users.push(user);  
       save(USERS_FILE, users);  
-    }  
+    } 
   
     
-      await ctx.replyWithHTML(
-  "<b>👋 Welcome to DPS Digital Wallet</b>\n\n" +
-  "Your secure all-in-one platform to <b>send</b>, <b>receive</b>, <b>swap</b> and <b>stake</b> digital assets with ease.\n\n" +
-  "Enjoy fast, reliable and seamless transactions in one powerful wallet.\n\n" +
-  "🚀 Tap below to get started and explore the DPS ecosystem.",
+      
+  await ctx.telegram.sendMessage(
+  ctx.chat.id,
+  "<b>👋 Welcome to DPS Digital Wallet</b>\n\nSecure platform to send, receive, swap and stake digital assets.",
   {
+    parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
         [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
@@ -122,11 +124,8 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
   }
 );
 
-
-
-
                     
-    );  
+   
     // خود بخود پروفایل دکھائیں  
     await sendProfile(ctx, user);  
   });  
