@@ -155,7 +155,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
         type: "article",  
         id: `dps_${Date.now()}`,  
         title: `💸 Send ${amount} $DPS `,  
-            thumb_url: "https://walletdp-web.vercel.app/logoLight.c9797ad4583a416a16c9.svg",
+            thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
       thumb_width: 152,
       thumb_height: 152,
         input_message_content: { message_text: `💸 DPS Transfer\n\nYou are sending ${amount} Dps on ton \nClick the button below to claim. amount and check profile see your total balance.` },  
