@@ -73,9 +73,8 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
   
     await ctx.reply(profileText, {  
         reply_markup: {  
-          inline_keyboard: [  
-            [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],  
-            [{ text: "🌐 Visit on Website 🌐", web_app: { url: web_link } }],
+          inline_keyboard: [ 
+            [{ text: "🚀 Open DPS Wallet App", web_app: { url: web_link } }],
             [{ text: "🎁 Tasks", callback_data: "tasks" }, { text: "💰 Deposit", callback_data: "deposit" }],  
             [{ text: "🔄 Refresh", callback_data: "refresh" }]  
           ]  
@@ -118,8 +117,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
-        [{ text: "🌐 Visit on Website 🌐", web_app: { url: web_link } }],
+        [{ text: "🚀 Open DPS Wallet App", web_app: { url: web_link } }],
         [
           { text: "👤 My Profile", callback_data: "profile" },
           { text: "🎁 Tasks", callback_data: "tasks" }
