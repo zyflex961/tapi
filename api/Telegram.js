@@ -102,15 +102,33 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
       save(USERS_FILE, users);  
     }  
   
-    await ctx.reply(`👋 Welcome to DPS Digital Wallet your can sending receiving swapping and stacking without any problem`, {  
-        reply_markup: {  
-          inline_keyboard: [  
-            [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],  
-            [{ text: "👤 My Profile", callback_data: "profile" }, { text: "🎁 Tasks", callback_data: "tasks" }],  
-            [{ text: "💰 Deposit", callback_data: "deposit" }]  
-          ]  
-        }  
-      }  
+    await ctx.replyWithHTML(
+  `<b>👋 Welcome to DPS Digital Wallet</b>
+
+Your all-in-one secure platform to
+<b>Send</b>, <b>Receive</b>, <b>Swap</b>, and <b>Stake</b> digital assets with ease.
+
+Experience fast, reliable, and seamless transactions — all in one place.
+
+🚀 Tap below to get started and explore the DPS ecosystem.`,
+  {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🚀 Open DPS Wallet App", url: WEB_APP_URL }],
+        [
+          { text: "👤 My Profile", callback_data: "profile" },
+          { text: "🎁 Tasks", callback_data: "tasks" }
+        ],
+        [{ text: "💰 Deposit", callback_data: "deposit" }]
+      ]
+    }
+  }
+);
+
+
+
+
+                    
     );  
     // خود بخود پروفایل دکھائیں  
     await sendProfile(ctx, user);  
@@ -227,11 +245,7 @@ Invite friends and earn 200 DPS per referral. Join our leader ship`;
     
 /* ===================================  
  P2P DEPOSIT Section.  
-==========================================
-  bot.action("deposit", (ctx) => {  
-    ctx.reply(" 💰 DPS Deposit</b><br><br>Dear User,<br><br>We are currently developing this feature and will be deploying it live very soon for your convenience.<br><br><b>Supported Deposit Methods:</b><br>• Bank Transfer<br>• Crypto Currency<br><br>Thank you for your patience and continued support.<br><b>— DPS Team</b>");  
-  });  
-====== */
+====================================== */
 
 bot.action("deposit", async (ctx) => {
   await ctx.replyWithHTML(
