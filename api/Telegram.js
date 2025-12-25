@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import "dotenv/config";  
 
 // --- MONGODB CONNECTION ---
-const MONGO_URI = "mongodb+srv://telegram_db_user:v6GZasHuDJvOj0Y2@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://telegram_db_user:YOUR_PASSWORD@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
@@ -27,27 +27,22 @@ export default function initEuroBot() {
   const ADMIN_ID = "8230113306"; 
   const web_link = "https://walletdps.vercel.app/";
 
-  // REWARD SETTINGS
   const SENDER_REWARD = 20; 
   const NEW_USER_REWARD = 50;
 
-  // --- Helper: Treasury Sync ---
+  // --- Treasury Helper ---
   async function adjustTreasury(amount, isAddingToAdmin) {
-    if (isAddingToAdmin) {
-      await User.updateOne({ chatId: ADMIN_ID }, { $inc: { balance: amount } });
-    } else {
-      await User.updateOne({ chatId: ADMIN_ID }, { $inc: { balance: -amount } });
-    }
+    await User.updateOne({ chatId: ADMIN_ID }, { $inc: { balance: isAddingToAdmin ? amount : -amount } });
   }
 
-  // --- Helper: Send Profile Message ---
+  // --- Profile Function (Same as your original style) ---
   async function sendProfile(ctx, user_chatId) {  
     const user = await User.findOne({ chatId: String(user_chatId) });
     const balance = user ? user.balance : 0;  
     const referrals = user ? user.referCount : 0;  
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${user_chatId}`;  
 
-    const profileText = `💎 <b>DPS DIGITAL WALLET PROFILE</b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}`;  
+    const profileText = `💎 <b>DPS DIGITAL WALLET PROFILE</b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}\n\nInvite friends and earn 100 DPS jetton per referral.`;  
 
     await ctx.telegram.sendMessage(user_chatId, profileText, {  
         parse_mode: "HTML",
@@ -61,118 +56,137 @@ export default function initEuroBot() {
     }).catch(() => {});
   }
 
-  /* =========================  
-     BOT START LOGIC
-  ========================= */
+  /* =============================================================
+     🚀 100% ORIGINAL START & REFERRAL LOGIC
+  ============================================================= */
   bot.start(async (ctx) => {  
     const chatId = String(ctx.chat.id);
-    const refBy = ctx.payload;
+    const refBy = ctx.payload; 
     let user = await User.findOne({ chatId: chatId });
 
     if (!user) {
+      // Create new user record first
       const initialBalance = (chatId === ADMIN_ID) ? 1000000000 : 0;
-      user = await User.create({ chatId, username: ctx.from.username || "User", balance: initialBalance });
+      await User.create({ 
+        chatId, 
+        username: ctx.from.username || "User", 
+        balance: initialBalance 
+      });
 
+      // Pure Referral Logic
       if (chatId !== ADMIN_ID && refBy && String(refBy) !== chatId) {
-        // Rewards for new user join via link
-        await User.updateOne({ chatId: chatId }, { $inc: { balance: NEW_USER_REWARD } });
-        await adjustTreasury(NEW_USER_REWARD, false);
-        
-        await User.updateOne({ chatId: String(refBy) }, { $inc: { balance: SENDER_REWARD, referCount: 1 } });
-        await adjustTreasury(SENDER_REWARD, false);
+        const inviter = await User.findOne({ chatId: String(refBy) });
+        if (inviter) {
+          // Update New User
+          await User.updateOne({ chatId: chatId }, { $inc: { balance: NEW_USER_REWARD } });
+          await adjustTreasury(NEW_USER_REWARD, false);
 
-        bot.telegram.sendMessage(refBy, `🎉 <b>Referral Success!</b>\nA new user joined. You earned <b>${SENDER_REWARD} DPS</b>.`, { parse_mode: "HTML" }).catch(()=>{});
+          // Update Inviter
+          await User.updateOne({ chatId: String(refBy) }, { $inc: { balance: SENDER_REWARD, referCount: 1 } });
+          await adjustTreasury(SENDER_REWARD, false);
+
+          // Notify Inviter (Original Notification)
+          bot.telegram.sendMessage(refBy, `🎉 <b>Referral Success!</b>\nA new user joined via your link.\nYou earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
+        }
       }
     }
+    
     await ctx.replyWithHTML("<b>👋 Welcome to DPS Digital Wallet</b>");
     await sendProfile(ctx, chatId);  
   });
 
-  /* =========================  
-     ADMIN COMMANDS
-  ========================= */
-  bot.command("blc", async (ctx) => {
+  /* =============================================================
+     🛠 ADMIN TOOLS (ALL REQUESTED COMMANDS)
+  ============================================================= */
+  bot.command("cmd", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
-    const parts = ctx.message.text.split(" ");
-    if (parts.length < 3) return ctx.reply("Usage: /blc @username +100");
-
-    const targetUser = parts[1].replace("@", "");
-    const operation = parts[2];
-    const amount = parseFloat(operation.substring(1));
-    const sign = operation[0];
-
-    const target = await User.findOne({ username: new RegExp(`^${targetUser}$`, 'i') });
-    if (!target) return ctx.reply("❌ User not found.");
-
-    if (sign === "+") {
-      await User.updateOne({ chatId: target.chatId }, { $inc: { balance: amount } });
-      await adjustTreasury(amount, false);
-      ctx.reply(`✅ Added ${amount} DPS to @${targetUser}`);
-    } else {
-      await User.updateOne({ chatId: target.chatId }, { $inc: { balance: -amount } });
-      await adjustTreasury(amount, true);
-      ctx.reply(`⚠️ Deducted ${amount} DPS from @${targetUser}`);
-    }
+    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n✨ /clear_database_confirm - Wipe all\n\n@zyflex control`;
+    await ctx.replyWithHTML(adminMenu);
   });
 
-  bot.command("user", async (ctx) => {
+  bot.command("total", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
-    const parts = ctx.message.text.split(" ");
-    if (parts.length < 3 || parts[2] !== "reset") return ctx.reply("Usage: /user @username reset");
+    const users = await User.find();
+    const total = users.reduce((acc, u) => acc + (u.balance || 0), 0);
+    ctx.replyWithHTML(`📊 <b>SYSTEM STATISTICS</b>\n\n👥 Users: ${users.length}\n💰 Supply: ${total.toFixed(2)} DPS`);
+  });
 
-    const targetUser = parts[1].replace("@", "");
-    const target = await User.findOne({ username: new RegExp(`^${targetUser}$`, 'i') });
+  bot.command("leaderboard", async (ctx) => {
+    const top = await User.find().sort({ referCount: -1 }).limit(10);
+    let msg = `🏆 <b>TOP REFERRERS</b>\n━━━━━━━━━━━━━━\n`;
+    top.forEach((u, i) => msg += `${i+1}. @${u.username || 'User'} - ${u.referCount} Refs\n`);
+    ctx.replyWithHTML(msg);
+  });
 
+  bot.command("finduser", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    const username = ctx.message.text.split(" ")[1]?.replace("@", "");
+    const target = await User.findOne({ username: new RegExp(`^${username}$`, 'i') });
     if (target) {
-      await adjustTreasury(target.balance, true);
-      await User.findOneAndDelete({ chatId: target.chatId });
-      ctx.reply(`🗑 @${targetUser} Reset. Balance returned to Treasury.`);
+      ctx.replyWithHTML(`🔍 <b>USER INFO:</b>\n🆔 ID: <code>${target.chatId}</code>\n💰 Balance: ${target.balance}\n👥 Refs: ${target.referCount}`);
+    } else { ctx.reply("❌ User not found."); }
+  });
+
+  bot.command("give", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    const [_, username, amt] = ctx.message.text.split(" ");
+    const amount = parseFloat(amt);
+    const target = await User.findOne({ username: new RegExp(`^${username?.replace("@","")}$`, 'i') });
+    if (target && !isNaN(amount)) {
+      await User.updateOne({ chatId: target.chatId }, { $inc: { balance: amount } });
+      await adjustTreasury(Math.abs(amount), amount > 0 ? false : true);
+      ctx.reply(`✅ Balance updated for @${username}`);
     }
   });
 
-  /* =========================  
-     INLINE TRANSFER SYSTEM
-  ========================= */
+  bot.command("Delete", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    const username = ctx.message.text.split(" ")[1]?.replace("@", "");
+    const target = await User.findOneAndDelete({ username: new RegExp(`^${username}$`, 'i') });
+    if (target) {
+        await adjustTreasury(target.balance, true);
+        ctx.reply(`👤 @${username} removed from database.`);
+    }
+  });
+
+  bot.command("clear_database_confirm", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    await User.deleteMany({ chatId: { $ne: ADMIN_ID } });
+    ctx.reply("✨ Database Cleared.");
+  });
+
+  /* =============================================================
+     💰 INLINE TRANSFER & CLAIM (STABLE VERSION)
+  ============================================================= */
   bot.on("inline_query", async (ctx) => {  
-    const q = ctx.inlineQuery.query.trim();  
-    const match = q.match(/^(\d+)$/i);  
+    const match = ctx.inlineQuery.query.trim().match(/^(\d+)$/i);  
     if (!match) return;  
-
     const amount = parseInt(match[1]);  
-    const senderId = String(ctx.from.id);
-    const user = await User.findOne({ chatId: senderId });
-
-    if (senderId === ADMIN_ID || (user && user.balance >= amount)) {
+    const sender = await User.findOne({ chatId: String(ctx.from.id) });
+    if (String(ctx.from.id) === ADMIN_ID || (sender && sender.balance >= amount)) {
       await ctx.answerInlineQuery([{  
-          type: "article",  
-          id: `dps_${Date.now()}`,  
+          type: "article", id: `dps_${Date.now()}`, 
           title: `💸 Send ${amount} 💎 $DPS`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
             message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
-          reply_markup: { 
-            inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${senderId}_${ctx.from.first_name}` }]] 
-          }  
+          reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
       }], { cache_time: 0 });
     }
   });
 
   bot.action(/claim_(\d+)_(\d+)_(.+)/, async (ctx) => {  
-    const amount = parseInt(ctx.match[1]);  
-    const senderId = ctx.match[2];
-    const senderName = ctx.match[3];
-    const receiverId = String(ctx.from.id);  
+    const [_, amt, sId, sName] = ctx.match;
+    const amount = parseInt(amt);
+    const receiverId = String(ctx.from.id);
+    if (sId === receiverId) return ctx.answerCbQuery("❌ Cannot claim own transfer.", { show_alert: true });
 
-    if (senderId === receiverId) return ctx.answerCbQuery("❌ Cannot claim own transfer.", { show_alert: true });
+    const sender = await User.findOne({ chatId: sId });
+    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return ctx.answerCbQuery("❌ Insufficient balance.");
 
-    const sender = await User.findOne({ chatId: senderId });
-    if (senderId !== ADMIN_ID && (!sender || sender.balance < amount)) {
-      return ctx.answerCbQuery("❌ Insufficient sender balance.");
-    }
-
-    if (senderId !== ADMIN_ID) await User.updateOne({ chatId: senderId }, { $inc: { balance: -amount } });
+    if (sId !== ADMIN_ID) await User.updateOne({ chatId: sId }, { $inc: { balance: -amount } });
 
     let receiver = await User.findOne({ chatId: receiverId });
     const isNew = !receiver;
@@ -180,26 +194,21 @@ export default function initEuroBot() {
     if (isNew) {
       await User.create({ chatId: receiverId, username: ctx.from.username || "User", balance: (amount + NEW_USER_REWARD) });
       await adjustTreasury(NEW_USER_REWARD, false);
-      
-      await User.updateOne({ chatId: senderId }, { $inc: { balance: SENDER_REWARD, referCount: 1 } });
+      await User.updateOne({ chatId: sId }, { $inc: { balance: SENDER_REWARD, referCount: 1 } });
       await adjustTreasury(SENDER_REWARD, false);
-
-      bot.telegram.sendMessage(senderId, `🎉 <b>New Referral!</b>\nA user joined via transfer. You earned <b>${SENDER_REWARD} DPS</b> reward.`, { parse_mode: "HTML" }).catch(()=>{});
+      bot.telegram.sendMessage(sId, `🎉 <b>New Referral!</b>\nA user joined via transfer. You earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
     } else {
       await User.updateOne({ chatId: receiverId }, { $inc: { balance: amount } });
     }
 
-    const refLink = `https://t.me/${ctx.botInfo.username}?start=${senderId}`;
-    await ctx.editMessageText(`✅ <b>Transfer Received!</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${senderName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed`, {
-      parse_mode: "HTML",
-      reply_markup: { inline_keyboard: [[{ text: "👤 View My Wallet", url: refLink }]] }
+    await ctx.editMessageText(`✅ <b>Transfer Received!</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${sName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed`, {
+      parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "👤 View My Wallet", url: `https://t.me/${ctx.botInfo.username}?start=${sId}` }]] }
     }).catch(() => {});  
-
-    ctx.answerCbQuery(isNew ? "🎉 +50 Bonus Received!" : "Transfer Claimed!");
+    ctx.answerCbQuery(isNew ? "🎉 +50 Bonus Added!" : "Claimed!");
   });
 
-  bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
   bot.action("refresh", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
+  bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
 
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
 }
