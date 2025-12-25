@@ -123,7 +123,7 @@ export default function initEuroBot() {
     const username = ctx.message.text.split(" ")[1]?.replace("@", "");
     const target = await User.findOne({ username: new RegExp(`^${username}$`, 'i') });
     if (target) {
-      ctx.replyWithHTML(`🔍 <b>USER INFO:</b>\n🆔 ID: <code>${target.chatId}</code>\n🧑‍🦰 Name: ${sName}\n💰 Balance: ${target.balance}\n👥 Refs: ${target.referCount}`);
+      ctx.replyWithHTML(`🔍 <b>USER INFO:</b>\n🆔 ID: <code>${target.chatId}</code>\n💰 Balance: ${target.balance}\n👥 Refs: ${target.referCount}`);
     } else { ctx.reply("❌ User not found."); }
   });
 
