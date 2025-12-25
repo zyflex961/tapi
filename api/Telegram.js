@@ -112,7 +112,7 @@ export default function initEuroBot() {
   ============================================================= */
   bot.command("cmd", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
-    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n✨ /clear_database_confirm - Wipe all\n\n@zyflex control`;
+    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n👁️ /viewtasks list of all task\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n📴 /deltask remove task \n✍️ /addtask add new task\n✨ /clear_database_confirm - Wipe all\n\nlist of all command & control`;
     await ctx.replyWithHTML(adminMenu);
   });
 
@@ -177,6 +177,37 @@ export default function initEuroBot() {
       await Task.create({ title: parts[0], reward: parseFloat(parts[1]), link: parts[2] });
       ctx.reply(`✅ Task Added: ${parts[0]}`);
     } catch (e) { ctx.reply("❌ Error: " + e.message); }
+  });
+
+    bot.command("deltask", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    const taskId = ctx.message.text.split(" ")[1];
+    if (!taskId) return ctx.reply("❌ Usage: /deltask [Task_ID]\nGet ID from /viewtasks");
+
+    try {
+      const deleted = await Task.findByIdAndDelete(taskId);
+      if (deleted) {
+        ctx.reply(`✅ Task Removed: ${deleted.title}`);
+      } else {
+        ctx.reply("❌ Task not found with this ID.");
+      }
+    } catch (e) { ctx.reply("❌ Invalid ID format."); }
+  });
+  
+
+    bot.command("viewtasks", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    try {
+      const allTasks = await Task.find().sort({ createdAt: 1 });
+      if (allTasks.length === 0) return ctx.reply("📭 No tasks in database.");
+
+      let msg = "📋 <b>CURRENT ACTIVE MISSIONS:</b>\n━━━━━━━━━━━━━━━━━━━━\n";
+      allTasks.forEach((t, i) => {
+        msg += `<b>${i + 1}.</b> ${t.title}\n💰 Reward: ${t.reward}\n🔗 Link: ${t.link}\n🆔 ID: <code>${t._id}</code>\n\n`;
+      });
+      msg += `<i>To remove a task, use: /deltask [ID]</i>`;
+      ctx.replyWithHTML(msg);
+    } catch (e) { ctx.reply("Error: " + e.message); }
   });
   
 
