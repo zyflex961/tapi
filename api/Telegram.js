@@ -107,14 +107,44 @@ export default function initEuroBot() {
     await sendProfile(ctx, chatId);  
   });
 
-  /* =============================================================
-     🛠 ADMIN TOOLS (ALL REQUESTED COMMANDS)
-  ============================================================= */
-  bot.command("cmd", async (ctx) => {
-    if (String(ctx.from.id) !== ADMIN_ID) return;
-    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n👁️ /viewtasks list of all task\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n📴 /deltask remove task \n✍️ /addtask add new task\n✨ /clear_database_confirm - Wipe all\n\nlist of all command & control`;
-    await ctx.replyWithHTML(adminMenu);
-  });
+
+  /* =====================
+// admin command area 
+================================ */
+
+  Bot.command("cmd", async (ctx) => {
+    try {
+        // چیک کریں کہ کیا میسج بھیجنے والا موجود ہے
+        if (!ctx.from) return;
+
+        // Admin ID کو چیک کرنے کا محفوظ طریقہ
+        if (String(ctx.from.id) !== String(ADMIN_ID)) {
+            return; // اگر ایڈمن نہیں ہے تو خاموشی سے ختم کر دیں
+        }
+
+        const adminMenu = `
+🛠 <b>ADMIN CONTROL PANEL</b>
+━━━━━━━━━━━━━━━━━━━━━━
+📊 /total - System stats
+🏆 /leaderboard - Top users
+🔍 /finduser @user - Profile lookup
+🎁 /give @user amount - Update balance
+👁️ /viewtasks - list of all task
+📢 /broadcast - Message all
+👤 /Delete @user - Remove user
+📴 /deltask - remove task 
+✍️ /addtask - add new task
+✨ /clear_database_confirm - Wipe all
+
+<i>List of all command & control</i>`;
+
+        await ctx.replyWithHTML(adminMenu);
+        
+    } catch (error) {
+        console.error("Command Error:", error);
+    }
+});
+  
 
   bot.command("total", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
