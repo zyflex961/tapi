@@ -109,10 +109,10 @@ export default function initEuroBot() {
 
 
   /* =====================
-// admin command area 
+// admin command area Here I have defined all the commands.
 ================================ */
 
-  Bot.command("cmd", async (ctx) => {
+  bot.command("cmd", async (ctx) => {
     try {
         // چیک کریں کہ کیا میسج بھیجنے والا موجود ہے
         if (!ctx.from) return;
