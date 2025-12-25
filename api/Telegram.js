@@ -123,7 +123,7 @@ export default function initEuroBot() {
     const username = ctx.message.text.split(" ")[1]?.replace("@", "");
     const target = await User.findOne({ username: new RegExp(`^${username}$`, 'i') });
     if (target) {
-      ctx.replyWithHTML(`🔍 <b>USER INFO:</b>\n🆔 ID: <code>${target.chatId}</code>\n💰 Balance: ${target.balance}\n👥 Refs: ${target.referCount}`);
+      ctx.replyWithHTML(`🔍 <b>USER INFO:</b>\n🆔 ID: <code>${target.chatId}</code>\n🧑‍🦰 Name: ${sName}\n💰 Balance: ${target.balance}\n👥 Refs: ${target.referCount}`);
     } else { ctx.reply("❌ User not found."); }
   });
 
@@ -166,13 +166,14 @@ export default function initEuroBot() {
     if (String(ctx.from.id) === ADMIN_ID || (sender && sender.balance >= amount)) {
       await ctx.answerInlineQuery([{  
           type: "article", id: `dps_${Date.now()}`, 
-          title: `💸 Send ${amount} 💎 DPS`,  
+          title: `💸 Send ${amount} 💎 DPS`,
+     description: `✅ Ready to send this amount for new users get +50 bonus offer!`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
             message_text: `💎 <b> DIGITAL TON PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
-          reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
+          reply_markup: { inline_keyboard: [[{ text: "✅ Claim Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
       }], { cache_time: 0 });
     }
   });
@@ -184,7 +185,7 @@ export default function initEuroBot() {
     if (sId === receiverId) return ctx.answerCbQuery(" ❌ Cannot claim own transfer.", { show_alert: true });
 
     const sender = await User.findOne({ chatId: sId });
-    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return ctx.answerCbQuery("❌ Insufficient balance.");
+    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return ctx.answerCbQuery("❌ Insufficient balance 👉 💸.");
 
     if (sId !== ADMIN_ID) await User.updateOne({ chatId: sId }, { $inc: { balance: -amount } });
 
@@ -196,7 +197,7 @@ export default function initEuroBot() {
       await adjustTreasury(NEW_USER_REWARD, false);
       await User.updateOne({ chatId: sId }, { $inc: { balance: SENDER_REWARD, referCount: 1 } });
       await adjustTreasury(SENDER_REWARD, false);
-      bot.telegram.sendMessage(sId, `🎉 <b>New Referral!</b>\nA user joined via transfer. You earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
+      bot.telegram.sendMessage(sId, `🎉 <b> Congratulations  New Referral!</b>\nA user joined via transfer. You earned <b>${SENDER_REWARD} DPS</b> bonus Make more transaction you will earn more money.`, { parse_mode: "HTML" }).catch(()=>{});
     } else {
       await User.updateOne({ chatId: receiverId }, { $inc: { balance: amount } });
     }
