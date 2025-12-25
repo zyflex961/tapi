@@ -100,7 +100,7 @@ export default function initEuroBot() {
   ============================================================= */
   bot.command("cmd", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
-    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n✨ /clear_database_confirm - Wipe all\n\n@zyflex control`;
+    const adminMenu = `🛠 <b>ADMIN CONTROL PANEL</b>\n━━━━━━━━━━━━━━━━━━━━━━\n📊 /total - System stats\n🏆 /leaderboard - Top users\n🔍 /finduser @user - Profile lookup\n🎁 /give @user amount - Update balance\n📢 /broadcast - Message all\n👤 /Delete @user - Remove user\n✨ /clear_database_confirm - Wipe all\n\n@zyflex control`;
     await ctx.replyWithHTML(adminMenu);
   });
 
@@ -113,7 +113,7 @@ export default function initEuroBot() {
 
   bot.command("leaderboard", async (ctx) => {
     const top = await User.find().sort({ referCount: -1 }).limit(10);
-    let msg = `🏆 <b>TOP REFERRERS</b>\n━━━━━━━━━━━━━━\n`;
+    let msg = `🏆 <b>TOP REFERRERS USER</b>\n━━━━━━━━━━━━━━━━━━\n`;
     top.forEach((u, i) => msg += `${i+1}. @${u.username || 'User'} - ${u.referCount} Refs\n`);
     ctx.replyWithHTML(msg);
   });
@@ -169,7 +169,7 @@ export default function initEuroBot() {
           title: `💸 Send ${amount} 💎 DPS`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
-            message_text: `💎 <b> DIGITAL PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
+            message_text: `💎 <b> DIGITAL TON PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
           reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
@@ -181,7 +181,7 @@ export default function initEuroBot() {
     const [_, amt, sId, sName] = ctx.match;
     const amount = parseInt(amt);
     const receiverId = String(ctx.from.id);
-    if (sId === receiverId) return ctx.answerCbQuery("❌ Cannot claim own transfer.", { show_alert: true });
+    if (sId === receiverId) return ctx.answerCbQuery(" ❌ Cannot claim own transfer.", { show_alert: true });
 
     const sender = await User.findOne({ chatId: sId });
     if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return ctx.answerCbQuery("❌ Insufficient balance.");
@@ -201,7 +201,7 @@ export default function initEuroBot() {
       await User.updateOne({ chatId: receiverId }, { $inc: { balance: amount } });
     }
 
-    await ctx.editMessageText(`<b>💰 Transfer Successfully Received Thanks!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${sName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed\n\n👍 Thank you for using DPS Digital ton Wallet`, {
+    await ctx.editMessageText(`<b>💰 Transfer Successfully Received Thanks!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${sName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed\n\n👍 Thank you for using DPS Digital ton Wallet`, {
       parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "👤 View My Wallet", url: `https://t.me/${ctx.botInfo.username}?start=${sId}` }]] }
     }).catch(() => {});  
     ctx.answerCbQuery(isNew ? "🎉 +50 Bonus Added!" : "Claimed successful check profile!");
