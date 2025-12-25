@@ -155,6 +155,72 @@ export default function initEuroBot() {
     ctx.reply("✨ Database Cleared.");
   });
 
+    /* =============================================================
+     👤 USER INTERFACE: STATS & HELP COMMANDS
+  ============================================================= */
+
+  // 1. PROFESSIONAL USER ANALYTICS (STATS)
+  bot.command("stats", async (ctx) => {
+    try {
+      const user = await User.findOne({ chatId: String(ctx.from.id) });
+      
+      if (user) {
+        const statsMsg = `📊 <b>DPS USER ANALYTICS</b>\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `👤 <b>User:</b> @${user.username || 'User'}\n` +
+          `🆔 <b>Account ID:</b> <code>${user.chatId}</code>\n\n` +
+          `💰 <b>Current Balance:</b>\n┗━━ <code>${user.balance.toFixed(2)} $DPS</code>\n\n` +
+          `👥 <b>Network Growth:</b>\n┗━━ <code>${user.referCount} Successful Referrals</code>\n\n` +
+          `🏆 <b>Rank Status:</b> ${user.referCount > 10 ? "💎 VIP Pro Holder" : "🌟 Growing Member"}\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `<i>Tip: Keep sharing small amounts to invite more people!</i>`;
+        
+        await ctx.replyWithHTML(statsMsg, Markup.inlineKeyboard([
+          [Markup.button.callback("🔄 Refresh Analytics", "refresh")]
+        ]));
+      } else {
+        ctx.reply("❌ Error: Please use /start first to initialize your wallet.");
+      }
+    } catch (e) {
+      console.log("Stats Error:", e);
+    }
+  });
+
+  // 2. INTERNATIONAL USER GUIDE (HELP)
+  bot.command("help", (ctx) => {
+    const botUser = ctx.botInfo.username;
+    const helpText = `✨ <b>DPS DIGITAL ECOSYSTEM: USER GUIDE</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `👋 <b>Welcome to the Global Hub of $DPS Assets!</b>\n` +
+      `DPS is not just a wallet; it’s a gateway to your digital financial growth in a decentralized economy.\n\n` +
+      `🚀 <b>STRATEGY: HOW TO EARN FAST?</b>\n` +
+      `The most effective way to expand your network is to transfer small amounts (e.g., 5 or 10 DPS) to friends or within public groups.\n\n` +
+      `💡 <b>Pro Earning Tip:</b>\n` +
+      `When you send 10 DPS via inline mode, anyone who claims it automatically becomes <b>Your Permanent Referral</b>. This converts a tiny transfer into a long-term passive income stream through referral bonuses!\n\n` +
+      `📝 <b>QUICK NAVIGATION:</b>\n` +
+      `• <b>Profile:</b> Type /start to view balance and your unique referral link.\n` +
+      `• <b>Instant Pay:</b> In any chat, type <code>@${botUser} [amount]</code> to transfer funds.\n` +
+      `• <b>Bonus Tasks:</b> Click the 🎁 <b>Tasks</b> button in your profile to claim daily rewards.\n\n` +
+      `🔐 <b>SECURITY & TRANSPARENCY:</b>\n` +
+      `Every transaction is secured and logged within our encrypted database. For dispute resolution or technical assistance, contact our Global Support: @zyflex.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `<i>Click the button below to close this guide.</i>`;
+
+    ctx.replyWithHTML(helpText, Markup.inlineKeyboard([
+      [Markup.button.callback("✅ GOT IT, THANKS", "close_help")]
+    ]));
+  });
+
+  // 3. ACTION TO CLOSE HELP MESSAGE
+  bot.action("close_help", async (ctx) => {
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      ctx.answerCbQuery("Closed.");
+    }
+  });
+  
+
   /* =============================================================
      💰 INLINE TRANSFER & CLAIM (STABLE VERSION)
   ============================================================= */
