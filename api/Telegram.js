@@ -169,7 +169,7 @@ export default function initEuroBot() {
           title: `💸 Send ${amount} 💎 DPS`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
-            message_text: `💎 <b>DPS DIGITAL TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
+            message_text: `💎 <b> DIGITAL PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
           reply_markup: { inline_keyboard: [[{ text: "✅ Claim DPS", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
@@ -201,10 +201,10 @@ export default function initEuroBot() {
       await User.updateOne({ chatId: receiverId }, { $inc: { balance: amount } });
     }
 
-    await ctx.editMessageText(`✅ <b>✅ 💰 Transfer Successfully Received Thanks!</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${sName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed\n\n👍 Thank you for using DPS Digital ton Wallet`, {
+    await ctx.editMessageText(`<b>💰 Transfer Successfully Received Thanks!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>From:</b> ${sName}\n💰 <b>Amount:</b> ${amount} $DPS\n${isNew ? "🎁 <b>Bonus:</b> +50 DPS\n" : ""}📅 <b>Status:</b> Completed\n\n👍 Thank you for using DPS Digital ton Wallet`, {
       parse_mode: "HTML", reply_markup: { inline_keyboard: [[{ text: "👤 View My Wallet", url: `https://t.me/${ctx.botInfo.username}?start=${sId}` }]] }
     }).catch(() => {});  
-    ctx.answerCbQuery(isNew ? "🎉 +50 Bonus Added!" : "Claimed!");
+    ctx.answerCbQuery(isNew ? "🎉 +50 Bonus Added!" : "Claimed successful check profile!");
   });
 
   bot.action("refresh", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
