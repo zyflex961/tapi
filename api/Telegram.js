@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import "dotenv/config";  
 
 // --- MONGODB CONNECTION ---
-const MONGO_URI = "mongodb+srv://telegram_db_user:YOUR_PASSWORD@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
+const MONGO_URI = "mongodb+srv://telegram_db_user:v6GZasHuDJvOj0Y2@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
 
 mongoose.connect(MONGO_URI).then(() => console.log("✅ MongoDB Connected")).catch(err => console.log("❌ DB Error:", err));
 
