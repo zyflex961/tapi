@@ -19,6 +19,18 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// 👇 ad task schema 👇
+const taskSchema = new mongoose.Schema({
+  title: String,
+  reward: Number,
+  link: String,
+  createdAt: { type: Date, default: Date.now }
+});
+const Task = mongoose.model('Task', taskSchema);
+
+// --- 👆 end of task schema 
+
+// default bot code👇👇
 export default function initEuroBot() {  
   const BOT_TOKEN = process.env.BOT_TOKEN;  
   if (!BOT_TOKEN) return;  
@@ -155,6 +167,19 @@ export default function initEuroBot() {
     ctx.reply("✨ Database Cleared.");
   });
 
+   bot.command("addtask", async (ctx) => {
+    if (String(ctx.from.id) !== ADMIN_ID) return;
+    const input = ctx.message.text.replace("/addtask", "").trim();
+    const parts = input.split("|").map(p => p.trim());
+    if (parts.length < 3) return ctx.reply("❌ Usage: /addtask Name | Reward | Link");
+    
+    try {
+      await Task.create({ title: parts[0], reward: parseFloat(parts[1]), link: parts[2] });
+      ctx.reply(`✅ Task Added: ${parts[0]}`);
+    } catch (e) { ctx.reply("❌ Error: " + e.message); }
+  });
+  
+
     /* =============================================================
      👤 USER INTERFACE: STATS & HELP COMMANDS
   ============================================================= */
@@ -276,6 +301,48 @@ export default function initEuroBot() {
 
   bot.action("refresh", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
   bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
+
+    bot.action("tasks", async (ctx) => {
+    const user = await User.findOne({ chatId: String(ctx.from.id) });
+    const allTasks = await Task.find().sort({ createdAt: 1 });
+    if (allTasks.length === 0) return ctx.answerCbQuery("No tasks available!", { show_alert: true });
+
+    let buttons = [];
+    allTasks.forEach((t) => {
+      const isDone = user.completedTasks.includes(String(t._id));
+      buttons.push([Markup.button.callback(`${isDone ? '✅' : '🎁'} ${t.title} (+${t.reward})`, isDone ? "already_done" : `do_${t._id}`)]);
+    });
+    buttons.push([Markup.button.callback("⬅️ Back to Profile", "profile")]);
+
+    await ctx.editMessageText("🎁 <b>DPS REWARD MISSIONS</b>\nComplete tasks to earn tokens!", {
+      parse_mode: "HTML", reply_markup: { inline_keyboard: buttons }
+    }).catch(() => {});
+  });
+
+  bot.action(/do_(.+)/, async (ctx) => {
+    const task = await Task.findById(ctx.match[1]);
+    if (!task) return;
+    const btns = [[Markup.button.url("🔗 Open Task Link", task.link)], [Markup.button.callback("✅ Verify Completion", `verify_${task._id}`)]];
+    await ctx.editMessageText(`🚀 <b>Task:</b> ${task.title}\n💰 <b>Reward:</b> ${task.reward} DPS`, {
+      parse_mode: "HTML", reply_markup: { inline_keyboard: btns }
+    });
+  });
+
+  bot.action(/verify_(.+)/, async (ctx) => {
+    const taskId = ctx.match[1];
+    const user = await User.findOne({ chatId: String(ctx.from.id) });
+    const task = await Task.findById(taskId);
+    if (!task || user.completedTasks.includes(taskId)) return ctx.answerCbQuery("Already claimed!");
+
+    await User.updateOne({ chatId: String(ctx.from.id) }, { $inc: { balance: task.reward }, $push: { completedTasks: taskId } });
+    await adjustTreasury(task.reward, false);
+    
+    await ctx.answerCbQuery(`🎉 Success! +${task.reward} DPS added.`, { show_alert: true });
+    sendProfile(ctx, ctx.from.id);
+  });
+
+  bot.action("already_done", (ctx) => ctx.answerCbQuery("✅ Task already completed!"));
+  
 
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
 }
