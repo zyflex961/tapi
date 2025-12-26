@@ -54,7 +54,7 @@ export default function initEuroBot() {
     const referrals = user ? user.referCount : 0;  
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${user_chatId}`;  
 
-    const profileText = `💎 <b>DPS DIGITAL WALLET PROFILE</b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}\n\nInvite friends and earn 100 DPS jetton per referral.`;  
+    const profileText = `🧑‍🦰 <b>DPS DIGITAL WALLET PROFILE </b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}\n\nInvite friends and earn 100 DPS jetton per referral.`;  
 
     await ctx.telegram.sendMessage(user_chatId, profileText, {  
         parse_mode: "HTML",
@@ -98,7 +98,7 @@ export default function initEuroBot() {
           await adjustTreasury(SENDER_REWARD, false);
 
           // Notify Inviter (Original Notification)
-          bot.telegram.sendMessage(refBy, `🎉 <b>Referral Success!</b>\nA new user joined via your link.\nYou earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
+          bot.telegram.sendMessage(refBy, `🎉 <b>Congratulations Referral Success!</b>\nA new user joined via your link.\nYou earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
         }
       }
     }
@@ -255,8 +255,8 @@ export default function initEuroBot() {
           `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
           `👤 <b>User:</b> @${user.username || 'User'}\n` +
           `🆔 <b>Account ID:</b> <code>${user.chatId}</code>\n\n` +
-          `💰 <b>Current Balance:</b>\n┗━━ <code>${user.balance.toFixed(2)} $DPS</code>\n\n` +
-          `👥 <b>Network Growth:</b>\n┗━━ <code>${user.referCount} Successful Referrals</code>\n\n` +
+          `💰 <b>Current Balance:</b>\n ┗━━ <code>${user.balance.toFixed(2)} $DPS</code>\n\n` +
+          `👥 <b>Network Growth:</b>\n ┗━━ <code>${user.referCount} Successful Referrals</code>\n\n` +
           `🏆 <b>Rank Status:</b> ${user.referCount > 10 ? "💎 VIP Pro Holder" : "🌟 Growing Member"}\n` +
           `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
           `<i>Tip: Keep sharing small amounts to invite more people!</i>`;
