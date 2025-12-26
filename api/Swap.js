@@ -1,5 +1,5 @@
 import express from "express";
-import { WebSocketServer } from "ws"; // ویب ساکٹ سرور کے لیے
+import { WebSocketServer } from "ws";
 import { TonClient } from "@ton/ton";
 import { toNano, fromNano } from "@ton/core";
 import { Omniston } from "@ston-fi/omniston-sdk";
@@ -7,65 +7,65 @@ import { Omniston } from "@ston-fi/omniston-sdk";
 const router = express.Router();
 
 /* -------- CONFIG -------- */
+// یہاں ٹون سینٹر صرف SDK کو خاموش رکھنے کے لیے ہے، اصل کام اومنی سٹون کا RPC کرے گا
 const TON_ENDPOINT = "https://toncenter.com/api/v2/jsonRPC";
-const SERVICE_FEE_ADDRESS = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const SERVICE_FEE_BPS = 50;
+const SERVICE_FEE_ADDRESS = "UQAJ3_21reITe-puJuEyRotn0PWlLDcbuTKF65JxhvjTBtuI";
+const SERVICE_FEE_BPS = 50; 
 
 /* -------- CLIENTS -------- */
 const tonClient = new TonClient({ endpoint: TON_ENDPOINT });
-const omniston = new Omniston({ tonClient });
+const omniston = new Omniston({ 
+  tonClient,
+  apiUrl: "https://omniston-mainnet.ston.fi/rpc" // تمام قیمتیں اور Estimation یہاں سے آئیں گی
+});
 
-/* -------- HELPERS -------- */
+/* -------- HELPERS (Conversion Logic) -------- */
+// فرنٹ اینڈ کا نمبر (1 USDT) -> یونٹس (1000000)
 const toUnits = (amount) => toNano(amount.toString()).toString();
-const fromUnits = (amount) => fromNano(amount.toString());
 
-/* -------- WEB SOCKET SERVER LOGIC -------- */
+// اومنی سٹون کے یونٹس -> فرنٹ اینڈ کا نمبر (نمائش کے لیے)
+const fromUnits = (amount) => {
+  if (!amount) return "0";
+  return fromNano(amount.toString());
+};
+
+/* -------- WEB SOCKET (Estimation & Quotes) -------- */
 export const setupSwapWebSocket = (server) => {
   const wss = new WebSocketServer({ server, path: "/swap/ws" });
 
-  console.log("🚀 Omniston WebSocket Server is ready at /swap/ws");
-
   wss.on("connection", (ws) => {
-    console.log("📱 Client connected to Swap WS");
     let activeSubscription = null;
 
-  
     ws.on("message", async (message) => {
       try {
         const payload = JSON.parse(message);
         const { offerAsset, askAsset, offerAmount, userAddress } = payload;
 
-        if (activeSubscription) {
-          activeSubscription = null; 
-        }
+        if (activeSubscription) await activeSubscription.return();
 
-        if (!offerAsset || !askAsset || !offerAmount) {
-          ws.send(JSON.stringify({ error: "Missing required swap parameters" }));
-          return;
-        }
-
-        const amountInUnits = toUnits(offerAmount);
-
+        // ڈیٹا کو یونٹس میں بدل کر اسٹون فائی کو بھیجنا
         activeSubscription = await omniston.subscribe({
-          offerAsset,
-          askAsset,
-          offerAmount: amountInUnits,
-          userAddress,
+          offerAssetAddress: offerAsset,
+          askAssetAddress: askAsset,
+          offerAmount: toUnits(offerAmount), 
+          address: userAddress,
           referralAddress: SERVICE_FEE_ADDRESS,
           referralFeeBps: SERVICE_FEE_BPS,
         });
 
+        // اومنی سٹون سے آنے والا ریئل ٹائم ڈیٹا (Quotes)
         for await (const quote of activeSubscription) {
           if (ws.readyState !== ws.OPEN) break;
 
+          // ڈیٹا کو واپس نمبر میں بدل کر فرنٹ اینڈ کو بھیجنا
           const response = {
             event: "quote_update",
             data: {
-              outputAmount: fromUnits(quote.askAmount),
+              outputAmount: fromUnits(quote.askAmount), // کتنا ٹون ملے گا (نمبر میں)
               blockchainFee: fromUnits(quote.blockchainFee),
               minAskAmount: fromUnits(quote.minAskAmount),
-              referralFee: fromUnits(quote.referralFee || 0),
               priceImpact: quote.priceImpact, 
+              referralFee: fromUnits(quote.referralFee || 0),
             },
           };
 
@@ -73,29 +73,30 @@ export const setupSwapWebSocket = (server) => {
         }
 
       } catch (err) {
-        console.error("WS Message Error:", err.message);
-        ws.send(JSON.stringify({ error: "SUBSCRIPTION_FAILED", details: err.message }));
+        console.error("Omniston Error:", err.message);
+        if (ws.readyState === ws.OPEN) {
+          ws.send(JSON.stringify({ error: "ESTIMATION_FAILED", details: err.message }));
+        }
       }
     });
 
     ws.on("close", () => {
-      console.log("❌ Client disconnected");
-      activeSubscription = null;
+      if (activeSubscription) activeSubscription.return();
     });
   });
 };
 
-/* -------- STANDARD HTTP ROUTES (Build & Health) -------- */
+/* -------- BUILD TRANSACTION (Final Swap) -------- */
 router.post("/swap/build", async (req, res) => {
   try {
     const { offerAsset, askAsset, offerAmount, minAskAmount, userAddress } = req.body;
-    
+
     const tx = await omniston.buildSwapTransaction({
-      offerAsset,
-      askAsset,
+      offerAssetAddress: offerAsset,
+      askAssetAddress: askAsset,
       offerAmount: toUnits(offerAmount),
       minAskAmount: toUnits(minAskAmount),
-      userAddress,
+      address: userAddress,
       referralAddress: SERVICE_FEE_ADDRESS,
       referralFeeBps: SERVICE_FEE_BPS,
     });
@@ -104,7 +105,7 @@ router.post("/swap/build", async (req, res) => {
       success: true,
       data: {
         to: tx.to.toString(),
-        value: fromUnits(tx.value),
+        value: tx.value.toString(),
         payload: tx.payload.toBoc().toString("base64"),
       }
     });
@@ -112,7 +113,5 @@ router.post("/swap/build", async (req, res) => {
     res.status(500).json({ error: "BUILD_FAILED", details: error.message });
   }
 });
-
-router.get("/swap/health", (req, res) => res.json({ status: "OK" }));
 
 export default router;
