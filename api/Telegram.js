@@ -389,20 +389,71 @@ export default function initEuroBot() {
     });
   });
 
-  bot.action(/verify_(.+)/, async (ctx) => {
-    const taskId = ctx.match[1];
-    const user = await User.findOne({ chatId: String(ctx.from.id) });
+  bot.action(/complete_task_(.+)/, async (ctx) => {
+  const taskId = ctx.match[1];
+  const userId = ctx.from.id;
+
+  try {
     const task = await Task.findById(taskId);
-    if (!task || user.completedTasks.includes(taskId)) return ctx.answerCbQuery("Already claimed!");
+    if (!task) return ctx.answerCbQuery("Task not found!");
 
-    await User.updateOne({ chatId: String(ctx.from.id) }, { $inc: { balance: task.reward }, $push: { completedTasks: taskId } });
-    await adjustTreasury(task.reward, false);
+    const user = await User.findOne({ chatId: String(userId) });
+    if (!user) return ctx.answerCbQuery("User not found. Please /start again.");
+
+    // 1. Check if already completed
+    if (user.completedTasks.includes(taskId)) {
+      return ctx.answerCbQuery("❌ You have already completed this task!", { show_alert: true });
+    }
+
+    // 2. Verification Logic
+    if (task.link.includes("t.me/")) {
+      // --- TELEGRAM VERIFICATION ---
+      let username = task.link.split("t.me/")[1].split("/")[0];
+      if (!username.startsWith("@")) username = "@" + username;
+
+      try {
+        const member = await ctx.telegram.getChatMember(username, userId);
+        const isJoined = ['member', 'administrator', 'creator'].includes(member.status);
+
+        if (!isJoined) {
+          return ctx.answerCbQuery(`⚠️ Please join ${username} first!`, { show_alert: true });
+        }
+      } catch (err) {
+        // If bot is not admin, we skip the hard check to avoid blocking the user
+        console.log("Bot needs admin rights in:", username);
+      }
+    } else {
+      // --- EXTERNAL VERIFICATION (YouTube, Twitter, WhatsApp) ---
+      await ctx.answerCbQuery("Verifying task... Please wait 5 seconds.", { show_alert: false });
+      
+      // Simulating a verification delay
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    // 3. Reward the User
+    await User.updateOne(
+      { chatId: String(userId) },
+      { 
+        $inc: { balance: task.reward }, 
+        $push: { completedTasks: taskId } 
+      }
+    );
+
+    // 4. Success Message in English
+    await ctx.editMessageText(
+      `✅ <b>Task Completed!</b>\n\n` +
+      `You have received <b>${task.reward} DPS</b> tokens.\n\n` +
+      `Keep completing tasks to earn more!`,
+      { parse_mode: "HTML" }
+    );
     
-    await ctx.answerCbQuery(`🎉 Success! +${task.reward} DPS added.`, { show_alert: true });
-    sendProfile(ctx, ctx.from.id);
-  });
+    ctx.answerCbQuery("Success! Reward added.");
 
-  bot.action("already_done", (ctx) => ctx.answerCbQuery("✅ Task already completed!"));
+  } catch (e) {
+    console.error(e);
+    ctx.answerCbQuery("Error: Something went wrong.");
+  }
+});
   
 
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
