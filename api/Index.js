@@ -6,7 +6,7 @@ import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
 import initEuroBot from "./Telegram.js";
-import { getUserData } from "./path/to/Telegram.js";
+import { getUserData } from "./Telegram.js";
 
 
 // bot start
