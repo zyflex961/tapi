@@ -20,6 +20,7 @@ const PORT = 4355;
 const allowedOrigins = [
   "http://localhost:4321",
   "http://127.0.0.1:4321",
+  "https://dpsweb.vercel.app/Tma",
   "https://walletdpstg.netlify.app",
   "https://wallet-multisend.vercel.app",
   "https://walletweb-delta.vercel.app",
