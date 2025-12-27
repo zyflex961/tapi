@@ -6,6 +6,8 @@ import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
 import initEuroBot from "./Telegram.js";
+import { getUserData } from "./path/to/telegram.js";
+
 
 // bot start
 initEuroBot();
@@ -81,6 +83,10 @@ app.use("/v2/dapp/catalog", Catalog);
 
 // refer/save 
 //app.use("reffer/", Reffer)
+
+// یہ ریکویسٹ خود بخود ٹیلیگرام جی ایس والے فنکشن کو ہینڈل کرنے کے لیے بھیج دے گی
+app.get('/api/user/:chatId', getUserData);
+
 
 // Swap → Omniston (inside Swap.js)
 app.use("/swap/ton", Swap);
