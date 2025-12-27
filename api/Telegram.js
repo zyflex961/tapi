@@ -458,3 +458,21 @@ export default function initEuroBot() {
 
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
 }
+
+
+export const getUserData = async (req, res) => {
+    try {
+        const user = await User.findOne({ chatId: req.params.chatId });
+        if (user) {
+            res.json({
+                balance: user.balance,
+                referCount: user.referCount,
+                username: user.username
+            });
+        } else {
+            res.status(404).json({ error: "User not found" });
+        }
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
