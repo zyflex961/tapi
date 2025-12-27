@@ -37,7 +37,7 @@ export default function initEuroBot() {
 
   const bot = new Telegraf(BOT_TOKEN);
   const ADMIN_ID = "8230113306"; 
-  const web_link = "https://walletdps.vercel.app/";
+  const web_link = "https://dpsweb.vercel.app/Tma/";
 
   const SENDER_REWARD = 20; 
   const NEW_USER_REWARD = 50;
