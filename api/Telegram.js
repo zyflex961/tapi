@@ -40,7 +40,7 @@ export default function initEuroBot() {
   const web_link = "https://dpsweb.vercel.app/Tma/";
 
   const SENDER_REWARD = 20; 
-  const NEW_USER_REWARD = 50;
+  const NEW_USER_REWARD = 30;
 
   // --- Treasury Helper ---
   async function adjustTreasury(amount, isAddingToAdmin) {
@@ -129,9 +129,9 @@ export default function initEuroBot() {
 🏆 /leaderboard - Top users
 🔍 /finduser @user - Profile lookup
 🎁 /give @user amount - Update balance
-👁️ /viewtasks - list of all task
 📢 /broadcast - Message all
 👤 /Delete @user - Remove user
+👁️ /viewtasks - list of all task
 📴 /deltask - remove task 
 ✍️ /addtask - add new task
 ✨ /clear_database_confirm - Wipe all
@@ -319,13 +319,13 @@ export default function initEuroBot() {
       await ctx.answerInlineQuery([{  
           type: "article", id: `dps_${Date.now()}`, 
           title: `💸 Send ${amount} 💎 DPS`,
-     description: `✅ Ready to send this amount for new users get +50 bonus offer!`,  
+     description: `✅ Ready to send this amount. offer for new user get 50 DPS!`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
             message_text: `💎 <b> DIGITAL TON PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
-          reply_markup: { inline_keyboard: [[{ text: "✅ Claim Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
+          reply_markup: { inline_keyboard: [[{ text: "✅ Confirm Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
       }], { cache_time: 0 });
     }
   });
