@@ -2,22 +2,62 @@ import { Telegraf, Markup } from "telegraf";
 import mongoose from "mongoose"; 
 import "dotenv/config";  
 
-// --- MONGODB CONNECTION ---
+// 1. Database URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://telegram_db_user:v6GZasHuDJvOj0Y2@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
 
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.log("❌ DB Error:", err));
-
-// --- DATA SCHEMA ---
+// 2. DATA SCHEMA (اسے ہمیشہ کنکشن سے اوپر ہونا چاہیے تاکہ کنکشن اس کو استعمال کر سکے)
 const userSchema = new mongoose.Schema({
   chatId: { type: String, unique: true },
   username: String,
-  balance: { type: Number, default: 0 },
+  balance: { type: Number, default: 0 },      // DPS Token
+  tonBalance: { type: Number, default: 0 },   // TON Coin
+  usdtBalance: { type: Number, default: 0 },  // USDT
   referCount: { type: Number, default: 0 },
   completedTasks: [String]
 });
 const User = mongoose.model('User', userSchema);
+
+// 3. MONGODB CONNECTION & AUTO-UPDATE
+mongoose.connect(MONGO_URI)
+  .then(async () => {
+    console.log("✅ MongoDB Connected");
+
+    try {
+      // اب یہاں "User" ٹھیک کام کرے گا
+      const result = await User.updateMany(
+        { tonBalance: { $exists: false } }, 
+        { 
+          $set: { 
+            tonBalance: 0, 
+            usdtBalance: 0 
+          } 
+        } 
+      );
+
+      if (result.modifiedCount > 0) {
+        console.log(`✨ Database Updated: ${result.modifiedCount} old users migrated.`);
+      } else {
+        console.log("ℹ️ Database is already up to date.");
+      }
+    } catch (err) {
+      console.log("❌ Migration Error:", err);
+    }
+  })
+  .catch(err => console.log("❌ DB Error:", err));
+
+// اس کے بعد آپ کا باقی بوٹ لاجک (initEuroBot) شروع ہوگا
+
+
+
+
+
+
+
+
+
+
+
+
 
 // 👇 ad task schema 👇
 const taskSchema = new mongoose.Schema({
@@ -513,16 +553,22 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
 }
 
-// mini app request path data jason 
+
+
+// --- Updated for Multi-Token Support ---
 export const getUserData = async (req, res) => {
     try {
         const user = await User.findOne({ chatId: req.params.chatId });
         if (user) {
             res.json({
-              
-                balance: user.balance,
+                username: user.username,
                 referCount: user.referCount,
-                username: user.username
+                // Sending all token balances to the frontend
+                balances: {
+                    dps: user.balance || 0,
+                    ton: user.tonBalance || 0,
+                    usdt: user.usdtBalance || 0
+                }
             });
         } else {
             res.status(404).json({ error: "User not found" });
@@ -531,3 +577,4 @@ export const getUserData = async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 };
+
