@@ -337,9 +337,10 @@ export default function initEuroBot() {
     if (sId === receiverId) return ctx.answerCbQuery(" ❌ Cannot claim own transfer.", { show_alert: true });
 
     const sender = await User.findOne({ chatId: sId });
-    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return
-ctx.answerCbQuery("❌ Insufficient balance. Please deposit your fund 👉 💸", { show_alert: true });
 
+if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
+  return ctx.answerCbQuery("❌ Insufficient balance. Please deposit your fund 👉 💸", { show_alert: true });
+}
 
 
 
