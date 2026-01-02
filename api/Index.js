@@ -1,13 +1,9 @@
 // index
-
 import express from "express";
-
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
-import initEuroBot, { getUserData } from "./Telegram.js";
-
-
+import initEuroBot, { getUserData, getTasks, claimTaskReward } from "./Telegram.
 
 // bot start
 initEuroBot();
@@ -87,6 +83,12 @@ app.use("/v2/dapp/catalog", Catalog);
 
 // request from mini app
 app.get('/api/user/:chatId', getUserData);
+app.get('/api/tasks', getTasks);
+app.post('/api/tasks/claim', claimTaskReward);
+
+
+
+
 
 
 // Swap → Omniston (inside Swap.js)
@@ -101,5 +103,6 @@ app.use(Proxy);
 app.listen(PORT, () => {
   console.log(`📂 Catalog Access: https://tapi-27fd.onrender.com/v2/dapp/catalog`);
 });
+
 
 
