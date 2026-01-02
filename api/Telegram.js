@@ -322,10 +322,10 @@ export default function initEuroBot() {
      description: `✅ Ready to send this amount. offer for new user get 50 DPS!`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
-            message_text: `💎 <b> DIGITAL TON PAYMENT TRANSFER</b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
+            message_text: `💎 <b> DIGITAL TON PAYMENT RECEIVED </b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
-          reply_markup: { inline_keyboard: [[{ text: "✅ Confirm Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
+          reply_markup: { inline_keyboard: [[{ text: "✅ Confirm Click Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
       }], { cache_time: 0 });
     }
   });
@@ -337,7 +337,12 @@ export default function initEuroBot() {
     if (sId === receiverId) return ctx.answerCbQuery(" ❌ Cannot claim own transfer.", { show_alert: true });
 
     const sender = await User.findOne({ chatId: sId });
-    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return ctx.answerCbQuery("❌ Insufficient balance 👉 💸.");
+    if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) return
+ctx.answerCbQuery("❌ Insufficient balance. Please deposit your fund 👉 💸", { show_alert: true });
+
+
+
+
 
     if (sId !== ADMIN_ID) await User.updateOne({ chatId: sId }, { $inc: { balance: -amount } });
 
