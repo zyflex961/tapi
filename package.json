@@ -18,6 +18,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "mongoose": "^8.0.0",
+    "axios": "^1.6.0",
     "express": "^5.2.1",
     "fs": "^0.0.1-security",
     "fs-extra": "^11.3.3",
