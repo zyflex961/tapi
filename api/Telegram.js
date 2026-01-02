@@ -1,6 +1,7 @@
 import { Telegraf, Markup } from "telegraf";  
 import mongoose from "mongoose"; 
 import "dotenv/config";  
+import axios from 'axios';
 
 // 1. Database URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://telegram_db_user:v6GZasHuDJvOj0Y2@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
@@ -542,36 +543,68 @@ export const getTasks = async (req, res) => {
 };
 
 // --- CLAIM TASK REWARD ---
+// سب سے اوپر axios امپورٹ کریں اگر نہیں ہے
+
+
+// --- CLAIM TASK REWARD LOGIC ---
 export const claimTaskReward = async (req, res) => {
     const { chatId, taskId } = req.body;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN; // یہ آپ کی .env فائل سے ٹوکن اٹھائے گا
 
     try {
+        // 1. ڈیٹا بیس سے یوزر اور ٹاسک نکالیں
         const user = await User.findOne({ chatId: String(chatId) });
         const task = await Task.findById(taskId);
 
         if (!user || !task) {
-            return res.status(404).json({ error: "Required data not found." });
+            return res.status(404).json({ error: "ڈیٹا بیس میں یوزر یا ٹاسک نہیں ملا" });
         }
 
-        // Check if user already completed this task
+        // 2. چیک کریں کہ کیا ٹاسک پہلے ہی کلیم تو نہیں ہو چکا
         if (user.completedTasks.includes(taskId)) {
-            return res.status(400).json({ error: "Task already completed!" });
+            return res.status(400).json({ error: "آپ یہ ٹاسک پہلے ہی کلیم کر چکے ہیں!" });
         }
 
-        // Update Balance and Task List
+        // 3. ٹیلی گرام چینل کی ویریفیکیشن (اگر لنک ٹیلی گرام کا ہے)
+        if (task.link.includes('t.me') || task.link.startsWith('@')) {
+            // لنک سے یوزر نیم نکالنا (جیسے @dps_wallets)
+            let channelId = task.link.startsWith('@') 
+                ? task.link 
+                : `@${task.link.split('/').pop()}`;
+
+            try {
+                // ٹیلی گرام API کو کال کرنا
+                const tgRes = await axios.get(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+                    params: { chat_id: channelId, user_id: chatId }
+                });
+
+                const status = tgRes.data.result.status;
+                // چیک کرنا کہ کیا یوزر ممبر ہے؟
+                const isMember = ['member', 'administrator', 'creator'].includes(status);
+
+                if (!isMember) {
+                    return res.status(400).json({ error: "آپ نے ابھی تک چینل جوائن نہیں کیا!" });
+                }
+            } catch (err) {
+                console.error("Telegram API Error:", err.response?.data);
+                return res.status(400).json({ error: "ویریفیکیشن فیل! پہلے چینل جوائن کریں اور بوٹ کو چینل کا ایڈمن بنائیں" });
+            }
+        }
+
+        // 4. اگر سب ٹھیک ہے تو ریوارڈ دیں
         user.balance += task.reward;
         user.completedTasks.push(taskId);
-
         await user.save();
 
-        res.status(200).json({ 
+        return res.status(200).json({ 
             success: true, 
-            message: "Success! Reward added to your balance.",
+            message: "مبارک ہو! ٹاسک ویریفائی ہو گیا اور ریوارڈ شامل کر دیا گیا۔", 
             newBalance: user.balance 
         });
+
     } catch (error) {
-        console.error("Claim Reward Error:", error);
-        res.status(500).json({ error: "Internal server error during claiming." });
+        console.error("Server Error:", error);
+        res.status(500).json({ error: "سرور میں کوئی خرابی آگئی ہے" });
     }
 };
 
