@@ -546,7 +546,14 @@ export const getTasks = async (req, res) => {
 // سب سے اوپر axios امپورٹ کریں اگر نہیں ہے
 export const claimTaskReward = async (req, res) => {
     const { chatId, taskId } = req.body;
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    
+    // Ensure this matches your .env variable name (BOT_TOKEN)
+    const botToken = process.env.BOT_TOKEN; 
+
+    if (!botToken) {
+        console.error("Critical: BOT_TOKEN is missing in environment variables.");
+        return res.status(500).json({ error: "Server configuration error." });
+    }
 
     try {
         const user = await User.findOne({ chatId: String(chatId) });
@@ -556,18 +563,17 @@ export const claimTaskReward = async (req, res) => {
             return res.status(404).json({ error: "Required data not found." });
         }
 
-        // Check if task is already completed
         if (user.completedTasks.includes(taskId)) {
             return res.status(400).json({ error: "Task already completed!" });
         }
 
-        // --- Telegram Task Verification ---
+        // --- Telegram Verification Logic ---
         if (task.link.includes('t.me') || task.link.startsWith('@')) {
-            // Extracting username from link (e.g., @channelname)
             let channelUsername = task.link.trim().split('/').pop().replace('@', '');
             const channelId = `@${channelUsername}`;
 
             try {
+                // Using the corrected botToken variable here
                 const tgRes = await axios.get(`https://api.telegram.org/bot${botToken}/getChatMember`, {
                     params: { chat_id: channelId, user_id: chatId }
                 });
@@ -579,16 +585,12 @@ export const claimTaskReward = async (req, res) => {
                     return res.status(400).json({ error: "Please join the channel first to claim reward." });
                 }
             } catch (err) {
-                console.error("Telegram API Error:", err.response?.data);
+                console.error("Telegram API Error:", err.response?.data || err.message);
                 return res.status(400).json({ error: "Verification failed. Ensure the bot is an admin in the channel." });
             }
         } 
-        // --- External Tasks (YouTube/Twitter/Web) ---
-        else {
-            console.log(`Manual verification approved for taskId: ${taskId}`);
-        }
 
-        // Update Balance and Completed Tasks List
+        // Update Balance
         user.balance += Number(task.reward);
         user.completedTasks.push(taskId);
         await user.save();
@@ -600,8 +602,8 @@ export const claimTaskReward = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Internal Server Error:", error);
-        res.status(500).json({ error: "Internal server error. Please try again later." });
+        console.error("System Error:", error);
+        res.status(500).json({ error: "Internal server error." });
     }
 };
 
