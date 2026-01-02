@@ -5,8 +5,8 @@ import express from "express";
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
-import initEuroBot from "./Telegram.js";
-import { getUserData } from "./Telegram.js";
+import initEuroBot, { getUserData } from "./Telegram.js";
+
 
 
 // bot start
@@ -101,4 +101,5 @@ app.use(Proxy);
 app.listen(PORT, () => {
   console.log(`📂 Catalog Access: https://tapi-27fd.onrender.com/v2/dapp/catalog`);
 });
+
 
