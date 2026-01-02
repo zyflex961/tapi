@@ -14,9 +14,9 @@ initEuroBot();
 const app = express();
 const PORT = 4355;
 
-/* =====================================================
+/* ===============================
    ALLOWED ORIGINS
-===================================================== */
+=============================== */
 const allowedOrigins = [
   "http://localhost:4321",
   "http://127.0.0.1:4321",
@@ -27,9 +27,9 @@ const allowedOrigins = [
   "https://walletdps.vercel.app",
 ];
 
-/* =====================================================
+/* =============================
    CORS HEADERS FUNCTION (AS-IS)
-===================================================== */
+=============================== */
 function corsHeaders(origin) {
   if (allowedOrigins.includes(origin)) {
     return {
@@ -43,9 +43,9 @@ function corsHeaders(origin) {
   return { "Access-Control-Allow-Origin": "null" };
 }
 
-/* =====================================================
+/* ===============================
    GLOBAL CORS GATE (ENTRY POINT)
-===================================================== */
+================================== */
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const headers = corsHeaders(origin);
@@ -70,9 +70,9 @@ app.use((req, res, next) => {
   next();
 });
 
-/* =====================================================
+/* ===================================
    ROUTE MAPPING (GATEWAY LOGIC)
-===================================================== */
+================================== */
 
 // Health check
 app.get("/", (req, res) => {
@@ -85,7 +85,7 @@ app.use("/v2/dapp/catalog", Catalog);
 // refer/save 
 //app.use("reffer/", Reffer)
 
-// یہ ریکویسٹ خود بخود ٹیلیگرام جی ایس والے فنکشن کو ہینڈل کرنے کے لیے بھیج دے گی
+// request from mini app
 app.get('/api/user/:chatId', getUserData);
 
 
@@ -95,9 +95,9 @@ app.use("/swap/ton", Swap);
 // Anything else → Proxy (MyTonWallet style)
 app.use(Proxy);
 
-/* =====================================================
+/* =====================================
    START SERVER
-===================================================== */
+=================================== */
 app.listen(PORT, () => {
   console.log(`📂 Catalog Access: https://tapi-27fd.onrender.com/v2/dapp/catalog`);
 });
