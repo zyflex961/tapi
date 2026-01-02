@@ -369,6 +369,54 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
   bot.action("refresh", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
   bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
 
+
+  // ----- deposit command
+    // --- DEPOSIT ACTION HANDLER ---
+  bot.action("deposit", async (ctx) => {
+    const chatId = String(ctx.from.id);
+    
+    const depositText = 
+      `💳 <b>DEPOSIT ASSETS (TON NETWORK)</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `You can deposit <b>TON</b>, <b>USDT</b>, or <b>DPS</b> tokens using the official address below.\n\n` +
+      `📌 <b>IMPORTANT INSTRUCTIONS:</b>\n` +
+      `• Only send assets via the <b>TON Network</b>.\n` +
+      `• You <b>MUST</b> include your Memo/Comment to ensure the system credits your account.\n\n` +
+      `🆔 <b>YOUR MEMO (REQUIRED):</b>\n` +
+      `<code>${chatId}</code>\n\n` +
+      `🏦 <b>DESTINATION WALLET:</b>\n` +
+      `<code>UQAJ3_21reITe-puJuEyRotn0PWlLDcbuTKF65JxhvjTBtuI</code>\n\n` +
+      `⚠️ <i>Assets sent without the correct Memo may be lost. Deposits are processed after network confirmation.</i>`;
+
+    try {
+      // Deleting old message and sending new one for a clean look
+      await ctx.deleteMessage().catch(() => {}); 
+      
+      await ctx.replyWithHTML(depositText, {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ I have sent the funds", callback_data: "confirm_deposit" }],
+            [{ text: "⬅️ Back to Profile", callback_data: "profile" }]
+          ]
+        }
+      });
+    } catch (e) {
+      console.log("Deposit Error:", e);
+      ctx.answerCbQuery("Error opening deposit menu.");
+    }
+  });
+
+  // Simple Confirmation Alert
+  bot.action("confirm_deposit", (ctx) => {
+    ctx.answerCbQuery("Verification in progress. Please wait for network confirmations.", { show_alert: true });
+  });
+  
+  
+
+
+
+
+  // ----- end of deposit 
     bot.action("tasks", async (ctx) => {
     const user = await User.findOne({ chatId: String(ctx.from.id) });
     const allTasks = await Task.find().sort({ createdAt: 1 });
@@ -394,6 +442,7 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
       parse_mode: "HTML", reply_markup: { inline_keyboard: btns }
     });
   });
+  
 
   bot.action(/complete_task_(.+)/, async (ctx) => {
   const taskId = ctx.match[1];
@@ -465,7 +514,7 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
   bot.launch().then(() => console.log("🚀 DPS System Online"));  
 }
 
-
+// mini app request path data jason 
 export const getUserData = async (req, res) => {
     try {
         const user = await User.findOne({ chatId: req.params.chatId });
