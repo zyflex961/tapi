@@ -40,7 +40,7 @@ export default function initEuroBot() {
   const web_link = "https://dpsweb.vercel.app/Tma/";
 
   const SENDER_REWARD = 20; 
-  const NEW_USER_REWARD = 30;
+  const NEW_USER_REWARD = 50;
 
   // --- Treasury Helper ---
   async function adjustTreasury(amount, isAddingToAdmin) {
@@ -98,7 +98,7 @@ export default function initEuroBot() {
           await adjustTreasury(SENDER_REWARD, false);
 
           // Notify Inviter (Original Notification)
-          bot.telegram.sendMessage(refBy, `🎉 <b>Congratulations Referral Success!</b>\nA new user joined via your link.\nYou earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
+          bot.telegram.sendMessage(refBy, `🎉 <b>Congratulations Referral Success!</b>\nA new user joined via your shared link. Your earned <b>${SENDER_REWARD} DPS</b> bonus.`, { parse_mode: "HTML" }).catch(()=>{});
         }
       }
     }
@@ -318,14 +318,14 @@ export default function initEuroBot() {
     if (String(ctx.from.id) === ADMIN_ID || (sender && sender.balance >= amount)) {
       await ctx.answerInlineQuery([{  
           type: "article", id: `dps_${Date.now()}`, 
-          title: `💸 Send ${amount} 💎 DPS`,
-     description: `✅ Ready to send this amount. offer for new user get 50 DPS!`,  
+          title: `💸 Send ${amount} 💎 DPS..?`,
+     description: `✅ Ready to send this amount. If your payment receiver is a new user, you will receive a cashback reward.`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
-            message_text: `💎 <b> DIGITAL TON PAYMENT RECEIVED </b>\n━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
+            message_text: `💎 <b> DIGITAL TON PAYMENT RECEIVED </b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
             parse_mode: "HTML"
           },  
-          reply_markup: { inline_keyboard: [[{ text: "✅ Confirm Click Now", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
+          reply_markup: { inline_keyboard: [[{ text: "✅ Confirm this amount", callback_data: `claim_${amount}_${ctx.from.id}_${ctx.from.first_name}` }]] }  
       }], { cache_time: 0 });
     }
   });
@@ -370,8 +370,8 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
   bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
 
 
-  // ----- deposit command
-    // --- DEPOSIT ACTION HANDLER ---
+  
+    // ------ DEPOSIT ACTION HANDLER START -----
   bot.action("deposit", async (ctx) => {
     const chatId = String(ctx.from.id);
     
@@ -382,9 +382,9 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
       `📌 <b>IMPORTANT INSTRUCTIONS:</b>\n` +
       `• Only send assets via the <b>TON Network</b>.\n` +
       `• You <b>MUST</b> include your Memo/Comment to ensure the system credits your account.\n\n` +
-      `🆔 <b>YOUR MEMO (REQUIRED):</b>\n` +
+      `🆔 <b> 👇 YOUR MEMO (REQUIRED) :</b>\n` +
       `<code>${chatId}</code>\n\n` +
-      `🏦 <b>DESTINATION WALLET:</b>\n` +
+      `🏦 <b>👇 YOUR WALLET:</b>\n` +
       `<code>UQAJ3_21reITe-puJuEyRotn0PWlLDcbuTKF65JxhvjTBtuI</code>\n\n` +
       `⚠️ <i>Assets sent without the correct Memo may be lost. Deposits are processed after network confirmation.</i>`;
 
@@ -411,12 +411,11 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
     ctx.answerCbQuery("Verification in progress. Please wait for network confirmations.", { show_alert: true });
   });
   
+
+  // -----  👆👆👆 end of deposit handler code ------
+
+
   
-
-
-
-
-  // ----- end of deposit 
     bot.action("tasks", async (ctx) => {
     const user = await User.findOne({ chatId: String(ctx.from.id) });
     const allTasks = await Task.find().sort({ createdAt: 1 });
@@ -520,6 +519,7 @@ export const getUserData = async (req, res) => {
         const user = await User.findOne({ chatId: req.params.chatId });
         if (user) {
             res.json({
+              
                 balance: user.balance,
                 referCount: user.referCount,
                 username: user.username
