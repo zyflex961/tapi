@@ -5,7 +5,7 @@ import "dotenv/config";
 // 1. Database URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://telegram_db_user:v6GZasHuDJvOj0Y2@cluster0.k2imatk.mongodb.net/dps_wallet?retryWrites=true&w=majority";
 
-// 2. DATA SCHEMA (اسے ہمیشہ کنکشن سے اوپر ہونا چاہیے تاکہ کنکشن اس کو استعمال کر سکے)
+// 2. ----- DATA SCHEMA ------
 const userSchema = new mongoose.Schema({
   chatId: { type: String, unique: true },
   username: String,
@@ -23,7 +23,6 @@ mongoose.connect(MONGO_URI)
     console.log("✅ MongoDB Connected");
 
     try {
-      // اب یہاں "User" ٹھیک کام کرے گا
       const result = await User.updateMany(
         { tonBalance: { $exists: false } }, 
         { 
@@ -44,20 +43,6 @@ mongoose.connect(MONGO_URI)
     }
   })
   .catch(err => console.log("❌ DB Error:", err));
-
-// اس کے بعد آپ کا باقی بوٹ لاجک (initEuroBot) شروع ہوگا
-
-
-
-
-
-
-
-
-
-
-
-
 
 // 👇 ad task schema 👇
 const taskSchema = new mongoose.Schema({
@@ -94,7 +79,7 @@ export default function initEuroBot() {
     const referrals = user ? user.referCount : 0;  
     const refLink = `https://t.me/${ctx.botInfo.username}?start=${user_chatId}`;  
 
-    const profileText = `🧑‍🦰 <b>DPS DIGITAL WALLET PROFILE </b>\n━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}\n\nInvite friends and earn 100 DPS jetton per referral.`;  
+    const profileText = `🧑‍🦰 <b>DPS DIGITAL WALLET PROFILE </b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Account ID:</b> <code>${user_chatId}</code>\n💰 <b>Balance:</b> <code>${balance.toFixed(2)} $DPS</code>\n👥 <b>Referrals:</b> <code>${referrals}</code>\n\n🔗 <b>Referral Link:</b>\n${refLink}\n\nInvite friends and earn 100 DPS jetton per referral.`;  
 
     await ctx.telegram.sendMessage(user_chatId, profileText, {  
         parse_mode: "HTML",
@@ -149,8 +134,8 @@ export default function initEuroBot() {
 
 
   /* =====================
-// admin command area Here I have defined all the commands.
-================================ */
+  //admin command area Here I have defined all the commands. 
+  ================================ */
 
   bot.command("cmd", async (ctx) => {
     try {
@@ -168,7 +153,7 @@ export default function initEuroBot() {
 📊 /total - System stats
 🏆 /leaderboard - Top users
 🔍 /finduser @user - Profile lookup
-🎁 /give @user amount - Update balance
+🎁 /give @user [Type] [Amount] - (e.g. /give @user TON 5)
 📢 /broadcast - Message all
 👤 /Delete @user - Remove user
 👁️ /viewtasks - list of all task
@@ -209,15 +194,55 @@ export default function initEuroBot() {
     } else { ctx.reply("❌ User not found."); }
   });
 
-  bot.command("give", async (ctx) => {
+bot.command("give", async (ctx) => {
     if (String(ctx.from.id) !== ADMIN_ID) return;
-    const [_, username, amt] = ctx.message.text.split(" ");
+
+    // استعمال کا طریقہ: /give @username TON 5 یا /give @username DPS 100
+    const [_, username, type, amt] = ctx.message.text.split(" ");
     const amount = parseFloat(amt);
-    const target = await User.findOne({ username: new RegExp(`^${username?.replace("@","")}$`, 'i') });
-    if (target && !isNaN(amount)) {
-      await User.updateOne({ chatId: target.chatId }, { $inc: { balance: amount } });
-      await adjustTreasury(Math.abs(amount), amount > 0 ? false : true);
-      ctx.reply(`✅ Balance updated for @${username}`);
+    const tokenType = type?.toUpperCase(); // DPS, TON, USDT
+
+    if (!username || !tokenType || isNaN(amount)) {
+      return ctx.replyWithHTML("❌ <b>Wrong Format!</b>\n\nUse: <code>/give @username [TOKEN] [AMOUNT]</code>\nExample: <code>/give @zyflex TON 2.5</code>");
+    }
+
+    try {
+      const targetUsername = username.replace("@", "");
+      const target = await User.findOne({ username: new RegExp(`^${targetUsername}$`, 'i') });
+
+      if (target) {
+        let updateField = {};
+        
+        // ٹوکن کی قسم کے مطابق ڈیٹا بیس فیلڈ کا انتخاب
+        if (tokenType === "DPS") {
+          updateField = { balance: amount };
+        } else if (tokenType === "TON") {
+          updateField = { tonBalance: amount };
+        } else if (tokenType === "USDT") {
+          updateField = { usdtBalance: amount };
+        } else {
+          return ctx.reply("❌ Invalid Token! Use DPS, TON, or USDT.");
+        }
+
+        // بیلنس اپ ڈیٹ کریں ($inc کا مطلب ہے موجودہ بیلنس میں پلس کرنا)
+        await User.updateOne({ chatId: target.chatId }, { $inc: updateField });
+        
+        // اگر DPS دیا ہے تو ٹریژری ایڈجسٹ کریں (اختیاری)
+        if (tokenType === "DPS") {
+          await adjustTreasury(Math.abs(amount), amount > 0 ? false : true);
+        }
+
+        ctx.replyWithHTML(`✅ <b>Success!</b>\nAdded <code>${amount} ${tokenType}</code> to @${targetUsername}`);
+        
+        // یوزر کو اطلاع دیں
+        bot.telegram.sendMessage(target.chatId, `🎁 <b>Reward Received!</b>\nAdmin added <code>${amount} ${tokenType}</code> to your wallet.`, { parse_mode: "HTML" }).catch(()=>{});
+        
+      } else {
+        ctx.reply("❌ User not found in database.");
+      }
+    } catch (e) {
+      console.error("Give Command Error:", e);
+      ctx.reply("❌ Error processing request.");
     }
   });
 
@@ -279,77 +304,8 @@ export default function initEuroBot() {
       ctx.replyWithHTML(msg);
     } catch (e) { ctx.reply("Error: " + e.message); }
   });
-  
 
-    /* =============================================================
-     👤 USER INTERFACE: STATS & HELP COMMANDS
-  ============================================================= */
-
-  // 1. PROFESSIONAL USER ANALYTICS (STATS)
-  bot.command("stats", async (ctx) => {
-    try {
-      const user = await User.findOne({ chatId: String(ctx.from.id) });
-      
-      if (user) {
-        const statsMsg = `📊 <b>DPS USER ANALYTICS</b>\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `👤 <b>User:</b> @${user.username || 'User'}\n` +
-          `🆔 <b>Account ID:</b> <code>${user.chatId}</code>\n\n` +
-          `💰 <b>Current Balance:</b>\n ┗━━ <code>${user.balance.toFixed(2)} $DPS</code>\n\n` +
-          `👥 <b>Network Growth:</b>\n ┗━━ <code>${user.referCount} Successful Referrals</code>\n\n` +
-          `🏆 <b>Rank Status:</b> ${user.referCount > 10 ? "💎 VIP Pro Holder" : "🌟 Growing Member"}\n` +
-          `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-          `<i>Tip: Keep sharing small amounts to invite more people!</i>`;
-        
-        await ctx.replyWithHTML(statsMsg, Markup.inlineKeyboard([
-          [Markup.button.callback("🔄 Refresh Analytics", "refresh")]
-        ]));
-      } else {
-        ctx.reply("❌ Error: Please use /start first to initialize your wallet.");
-      }
-    } catch (e) {
-      console.log("Stats Error:", e);
-    }
-  });
-
-  // 2. INTERNATIONAL USER GUIDE (HELP)
-  bot.command("help", (ctx) => {
-    const botUser = ctx.botInfo.username;
-    const helpText = `✨ <b>DPS DIGITAL ECOSYSTEM: USER GUIDE</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `👋 <b>Welcome to the Global Hub of $DPS Assets!</b>\n` +
-      `DPS is not just a wallet; it’s a gateway to your digital financial growth in a decentralized economy.\n\n` +
-      `🚀 <b>STRATEGY: HOW TO EARN FAST?</b>\n` +
-      `The most effective way to expand your network is to transfer small amounts (e.g., 5 or 10 DPS) to friends or within public groups.\n\n` +
-      `💡 <b>Pro Earning Tip:</b>\n` +
-      `When you send 10 DPS via inline mode, anyone who claims it automatically becomes <b>Your Permanent Referral</b>. This converts a tiny transfer into a long-term passive income stream through referral bonuses!\n\n` +
-      `📝 <b>QUICK NAVIGATION:</b>\n` +
-      `• <b>Profile:</b> Type /start to view balance and your unique referral link.\n` +
-      `• <b>Instant Pay:</b> In any chat, type <code>@${botUser} [amount]</code> to transfer funds.\n` +
-      `• <b>Bonus Tasks:</b> Click the 🎁 <b>Tasks</b> button in your profile to claim daily rewards.\n\n` +
-      `🔐 <b>SECURITY & TRANSPARENCY:</b>\n` +
-      `Every transaction is secured and logged within our encrypted database. For dispute resolution or technical assistance, contact our Global Support: @zyflex.\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `<i>Click the button below to close this guide.</i>`;
-
-    ctx.replyWithHTML(helpText, Markup.inlineKeyboard([
-      [Markup.button.callback("✅ GOT IT, THANKS", "close_help")]
-    ]));
-  });
-
-  // 3. ACTION TO CLOSE HELP MESSAGE
-  bot.action("close_help", async (ctx) => {
-    try {
-      await ctx.deleteMessage();
-    } catch (e) {
-      ctx.answerCbQuery("Closed.");
-    }
-  });
-  
-
-  /* =============================================================
-     💰 INLINE TRANSFER & CLAIM (STABLE VERSION)
-  ============================================================= */
+  // =======  💰 INLINE TRANSFER & CLAIM (STABLE VERSION) ============== 
   bot.on("inline_query", async (ctx) => {  
     const match = ctx.inlineQuery.query.trim().match(/^(\d+)$/i);  
     if (!match) return;  
@@ -359,7 +315,7 @@ export default function initEuroBot() {
       await ctx.answerInlineQuery([{  
           type: "article", id: `dps_${Date.now()}`, 
           title: `💸 Send ${amount} 💎 DPS..?`,
-     description: `✅ Ready to send this amount. If your payment receiver is a new user, you will receive a cashback reward.`,  
+          description: `✅ Ready to send this amount. If your payment receiver is a new user, you will receive a cashback reward.`,  
           thumb_url: "https://walletdp-web.vercel.app/dpslogo.png",
           input_message_content: { 
             message_text: `💎 <b> DIGITAL TON PAYMENT RECEIVED </b>\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n🧑‍🦰 <b>Sender:</b> ${ctx.from.first_name}\n💰 <b>Amount:</b> ${amount} $DPS\n\n<i>Click below to claim. New users get 50 DPS bonus! 🎁</i>`,
@@ -381,8 +337,6 @@ export default function initEuroBot() {
 if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
   return ctx.answerCbQuery("❌ Insufficient balance. Please deposit your fund 👉 💸", { show_alert: true });
 }
-
-
 
 
     if (sId !== ADMIN_ID) await User.updateOne({ chatId: sId }, { $inc: { balance: -amount } });
@@ -408,8 +362,6 @@ if (sId !== ADMIN_ID && (!sender || sender.balance < amount)) {
 
   bot.action("refresh", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
   bot.action("profile", async (ctx) => { try { await ctx.deleteMessage(); } catch(e) {} sendProfile(ctx, ctx.from.id); });
-
-
   
     // ------ DEPOSIT ACTION HANDLER START -----
   bot.action("deposit", async (ctx) => {
