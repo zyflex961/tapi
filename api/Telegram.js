@@ -544,7 +544,7 @@ export const getTasks = async (req, res) => {
 
 // --- CLAIM TASK REWARD ---
 // سب سے اوپر axios امپورٹ کریں اگر نہیں ہے
-export const claimTaskReward = async (req, res) => {
+export const claim = async (req, res) => {
     const { chatId, taskId } = req.body;
 
     try {
