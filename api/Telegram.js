@@ -530,3 +530,49 @@ export const getUserData = async (req, res) => {
     }
 };
 
+// --- GET ALL TASKS ---
+export const getTasks = async (req, res) => {
+    try {
+        const tasks = await Task.find().sort({ createdAt: -1 });
+        res.status(200).json(tasks);
+    } catch (error) {
+        console.error("Fetch Tasks Error:", error);
+        res.status(500).json({ error: "Failed to load tasks. Please try again later." });
+    }
+};
+
+// --- CLAIM TASK REWARD ---
+export const claimTaskReward = async (req, res) => {
+    const { chatId, taskId } = req.body;
+
+    try {
+        const user = await User.findOne({ chatId: String(chatId) });
+        const task = await Task.findById(taskId);
+
+        if (!user || !task) {
+            return res.status(404).json({ error: "Required data not found." });
+        }
+
+        // Check if user already completed this task
+        if (user.completedTasks.includes(taskId)) {
+            return res.status(400).json({ error: "Task already completed!" });
+        }
+
+        // Update Balance and Task List
+        user.balance += task.reward;
+        user.completedTasks.push(taskId);
+
+        await user.save();
+
+        res.status(200).json({ 
+            success: true, 
+            message: "Success! Reward added to your balance.",
+            newBalance: user.balance 
+        });
+    } catch (error) {
+        console.error("Claim Reward Error:", error);
+        res.status(500).json({ error: "Internal server error during claiming." });
+    }
+};
+
+
