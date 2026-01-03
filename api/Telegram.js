@@ -543,25 +543,41 @@ export const getTasks = async (req, res) => {
 };
 
 // --- CLAIM TASK REWARD ---
-// سب سے اوپر axios امپورٹ کریں اگر نہیں ہے
+// --- CLAIM TASK REWARD FUNCTION ---
 export const claim = async (req, res) => {
     const { chatId, taskId } = req.body;
 
+    // سرور کنسول میں چیک کرنے کے لیے
+    console.log(`Processing claim for User: ${chatId}, Task: ${taskId}`);
+
     try {
+        // یوزر کو ڈھونڈیں (آپ کے اسکیما کے مطابق)
         const user = await User.findOne({ chatId: String(chatId) });
+        
+        // ٹاسک کو ڈھونڈنے کے لیے (اگر Task ماڈل اوپر نہیں ہے تو ہم براہ راست کلکشن سے اٹھا لیں گے)
+        const Task = mongoose.model('Task'); 
         const task = await Task.findById(taskId);
 
-        if (!user || !task) return res.status(404).json({ error: "Task or User not found." });
-
-        // پہلے سے مکمل ہے تو روک دیں
-        if (user.completedTasks.includes(taskId)) {
-            return res.status(400).json({ error: "Task already completed." });
+        if (!user || !task) {
+            return res.status(404).json({ success: false, error: "User or Task not found." });
         }
 
-        // کوئی ویریفیکیشن نہیں، بس ریوارڈ دے دیں
+        // چیک کریں کہ ٹاسک پہلے ہی تو نہیں ہو چکا (چونکہ آپ کے پاس String array ہے)
+        if (user.completedTasks.includes(String(taskId))) {
+            return res.status(400).json({ success: false, error: "Task already completed." });
+        }
+
+        // --- ریوارڈ دینا ---
+        // بیلنس میں اضافہ کریں
         user.balance += Number(task.reward);
-        user.completedTasks.push(taskId);
+        
+        // مکمل ٹاسک کی لسٹ میں آئی ڈی ڈالیں
+        user.completedTasks.push(String(taskId));
+        
+        // ڈیٹا بیس میں محفوظ کریں
         await user.save();
+
+        console.log(`✅ Success: ${task.reward} DPS added to ${chatId}`);
 
         return res.status(200).json({ 
             success: true, 
@@ -570,7 +586,7 @@ export const claim = async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: "Server error." });
+        console.error("❌ Backend Claim Error:", error);
+        return res.status(500).json({ success: false, error: "Internal server error." });
     }
 };
-
