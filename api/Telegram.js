@@ -553,7 +553,22 @@ export const getTasks = async (req, res) => {
 
 // --- CLAIM TASK REWARD FUNCTION ---
 export const claim = async (req, res) => {
+    // 1. فرنٹ اینڈ سے آنے والے مکمل ڈیٹا کو لاگ میں دیکھنا
+    console.log("------------------------------------------");
+    console.log("📥 Incoming Request at /api/tasks/claim");
+    console.log("📦 Raw JSON Data from Frontend:", JSON.stringify(req.body, null, 2));
+    console.log("------------------------------------------");
+
     const { chatId, taskId } = req.body;
+
+    // اگر ڈیٹا ہی نہیں آ رہا تو فوراً فرنٹ اینڈ کو بتائیں
+    if (!chatId || !taskId) {
+        console.log("❌ Error: Missing chatId or taskId in request body");
+        return res.status(400).json({ 
+            success: false, 
+            error: "Data missing: Back-end did not receive chatId or taskId." 
+        });
+    }
 
     try {
         const UserModel = mongoose.models.User;
@@ -561,13 +576,14 @@ export const claim = async (req, res) => {
 
         const task = await TaskModel.findById(taskId);
         if (!task) {
-            return res.status(404).json({ success: false, error: "Task not found" });
+            console.log(`❌ Error: Task ID ${taskId} not found in database.`);
+            return res.status(404).json({ success: false, error: "Task not found." });
         }
 
         const updatedUser = await UserModel.findOneAndUpdate(
             {
                 chatId: String(chatId),
-                completedTasks: { $ne: String(taskId) } // پہلے مکمل نہ ہوا ہو
+                completedTasks: { $ne: String(taskId) } 
             },
             {
                 $inc: { balance: Number(task.reward) },
@@ -577,16 +593,24 @@ export const claim = async (req, res) => {
         );
 
         if (!updatedUser) {
-            return res.status(400).json({ success: false, error: "Already completed or user not found" });
+            console.log(`❌ Error: User ${chatId} not found OR Task already claimed.`);
+            return res.status(400).json({ 
+                success: false, 
+                error: "User not found or reward already claimed." 
+            });
         }
 
+        // 2. فرنٹ اینڈ کو کامیابی کی کنفرمیشن بھیجنا
+        console.log(`✅ Success: Reward sent to User ${chatId}. New Balance: ${updatedUser.balance}`);
+        
         return res.status(200).json({
             success: true,
+            message: "Confirmation: Reward added to your account!",
             newBalance: updatedUser.balance
         });
 
     } catch (error) {
-        console.error("Critical Claim Error:", error);
-        return res.status(500).json({ success: false, error: "Internal server error" });
+        console.error("🔥 Server Crash Error:", error.message);
+        return res.status(500).json({ success: false, error: "Server error occurred." });
     }
 };
