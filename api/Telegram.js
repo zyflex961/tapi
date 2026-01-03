@@ -552,3 +552,43 @@ export const getTasks = async (req, res) => {
 
 
 // --- CLAIM TASK REWARD FUNCTION ---
+// --- CLAIM TASK REWARD (ULTRA SAFE VERSION) ---
+export const claim = async (req, res) => {
+    const { chatId, taskId } = req.body;
+
+    try {
+        // براہ راست ماڈلز کو ان کے نام سے پکاریں تاکہ کوئی Conflict نہ ہو
+        const UserModel = mongoose.models.User;
+        const TaskModel = mongoose.models.Task;
+
+        const user = await UserModel.findOne({ chatId: String(chatId) });
+        const task = await TaskModel.findById(taskId);
+
+        if (!user || !task) {
+            return res.status(404).json({ success: false, error: "Data not found" });
+        }
+
+        // چیک کریں کہ پہلے سے مکمل تو نہیں
+        if (user.completedTasks && user.completedTasks.includes(String(taskId))) {
+            return res.status(400).json({ success: false, error: "Already completed" });
+        }
+
+        // ریوارڈ دینا
+        user.balance = (user.balance || 0) + Number(task.reward);
+        
+        // ٹاسک آئی ڈی محفوظ کرنا
+        if (!user.completedTasks) user.completedTasks = [];
+        user.completedTasks.push(String(taskId));
+
+        await user.save();
+
+        return res.status(200).json({ 
+            success: true, 
+            newBalance: user.balance 
+        });
+
+    } catch (error) {
+        console.error("Critical Claim Error:", error);
+        return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+};
