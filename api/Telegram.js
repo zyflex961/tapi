@@ -18,6 +18,19 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// task 
+const taskSchema = new mongoose.Schema({
+  title: String,
+  link: String,
+  reward: Number
+});
+
+const Task = mongoose.models.Task || mongoose.model('Task', taskSchema);
+
+
+
+
+
 // 3. MONGODB CONNECTION & AUTO-UPDATE
 mongoose.connect(MONGO_URI)
   .then(async () => {
