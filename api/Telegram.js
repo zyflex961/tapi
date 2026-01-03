@@ -25,7 +25,7 @@ const taskSchema = new mongoose.Schema({
   reward: Number
 });
 
-const Task = mongoose.models.Task || mongoose.model('Task', taskSchema);
+
 
 
 
