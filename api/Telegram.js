@@ -18,13 +18,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// task schema here 
-
-
-
-
-
-
 
 // 3. MONGODB CONNECTION & AUTO-UPDATE
 mongoose.connect(MONGO_URI)
