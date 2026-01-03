@@ -19,17 +19,25 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 // task schema here start 
-
-// پرانا والا حصہ ہٹا کر یہ پیسٹ کریں
-if (!mongoose.models.Task) {
-    const taskSchema = new mongoose.Schema({
-        title: String,
-        link: String,
-        reward: Number
-    });
-    mongoose.model('Task', taskSchema);
+// ہم نے نام بدل کر 'taskSchemaNew' اور 'TaskModel' کر دیے ہیں تاکہ پرانے کوڈ سے نہ ٹکرائیں
+let TaskModel;
+try {
+    if (mongoose.models.Task) {
+        TaskModel = mongoose.model('Task');
+    } else {
+        const taskSchemaNew = new mongoose.Schema({
+            title: String,
+            link: String,
+            reward: Number
+        });
+        TaskModel = mongoose.model('Task', taskSchemaNew);
+    }
+} catch (error) {
+    TaskModel = mongoose.model('Task');
 }
-const Task = mongoose.model('Task');
+
+// اب جہاں بھی Task استعمال کرنا تھا، وہاں 'TaskModel' استعمال کریں
+
 
 
 
