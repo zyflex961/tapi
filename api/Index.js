@@ -3,7 +3,7 @@ import express from "express";
 import Catalog from "./Catalog.js";
 import Swap from "./Swap.js";
 import Proxy from "./Proxy.js";
-import initEuroBot, { getUserData, getTasks, verifyTask } from "./Telegram.js";
+import initEuroBot, { getUserData, getTasks, } from "./Telegram.js";
 
 
 
@@ -86,7 +86,7 @@ app.use("/v2/dapp/catalog", Catalog);
 // request from mini app
 app.get('/api/user/:chatId', getUserData);
 app.get('/api/tasks', getTasks);
-app.post('/api/tasks/claim', verifyTask);
+// app.post('/api/tasks/claim', verifyTask);
 
 
 
