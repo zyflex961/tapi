@@ -613,3 +613,8 @@ export const claim = async (req, res) => {
         console.error("🔥 Server Crash Error:", error.message);
         return res.status(500).json({ success: false, error: "Server error occurred." });
     }};
+
+
+// فائل کے بالکل آخر میں پرانے ایکسپورٹس ہٹا کر یہ لکھیں
+export { getUserData, getTasks, claim }; 
+
