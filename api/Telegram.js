@@ -612,4 +612,4 @@ export const claim = async (req, res) => {
     } catch (error) {
         console.error("🔥 Server Crash Error:", error.message);
         return res.status(500).json({ success: false, error: "Server error occurred." });
-    }
+    }};
