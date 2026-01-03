@@ -555,51 +555,43 @@ export const getTasks = async (req, res) => {
     }
 };
 
-// --- CLAIM TASK REWARD ---
+
 // --- CLAIM TASK REWARD FUNCTION ---
+
 export const claim = async (req, res) => {
     const { chatId, taskId } = req.body;
 
-    // سرور کنسول میں چیک کرنے کے لیے
-    console.log(`Processing claim for User: ${chatId}, Task: ${taskId}`);
-
     try {
-        // یوزر کو ڈھونڈیں (آپ کے اسکیما کے مطابق)
+        // یوزر اور ٹاسک کو ڈھونڈنا
         const user = await User.findOne({ chatId: String(chatId) });
-        
-        // ٹاسک کو ڈھونڈنے کے لیے (اگر Task ماڈل اوپر نہیں ہے تو ہم براہ راست کلکشن سے اٹھا لیں گے)
-        const Task = mongoose.model('Task'); 
         const task = await Task.findById(taskId);
 
         if (!user || !task) {
-            return res.status(404).json({ success: false, error: "User or Task not found." });
+            return res.status(404).json({ success: false, error: "Required data not found." });
         }
 
-        // چیک کریں کہ ٹاسک پہلے ہی تو نہیں ہو چکا (چونکہ آپ کے پاس String array ہے)
+        // چیک کریں کہ ٹاسک پہلے ہی مکمل تو نہیں (String array کے لیے)
         if (user.completedTasks.includes(String(taskId))) {
-            return res.status(400).json({ success: false, error: "Task already completed." });
+            return res.status(400).json({ success: false, error: "Task already completed!" });
         }
 
-        // --- ریوارڈ دینا ---
-        // بیلنس میں اضافہ کریں
+        // ریوارڈ دینا
         user.balance += Number(task.reward);
         
-        // مکمل ٹاسک کی لسٹ میں آئی ڈی ڈالیں
+        // ٹاسک آئی ڈی کو لسٹ میں ڈالنا
         user.completedTasks.push(String(taskId));
         
-        // ڈیٹا بیس میں محفوظ کریں
+        // محفوظ کرنا
         await user.save();
-
-        console.log(`✅ Success: ${task.reward} DPS added to ${chatId}`);
 
         return res.status(200).json({ 
             success: true, 
-            message: "Reward added successfully!", 
+            message: "Reward claimed successfully!", 
             newBalance: user.balance 
         });
 
     } catch (error) {
-        console.error("❌ Backend Claim Error:", error);
+        console.error("Claim Error:", error);
         return res.status(500).json({ success: false, error: "Internal server error." });
     }
 };
