@@ -18,12 +18,18 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// task 
-const taskSchema = new mongoose.Schema({
-  title: String,
-  link: String,
-  reward: Number
-});
+// task schema here start 
+
+// پرانا والا حصہ ہٹا کر یہ پیسٹ کریں
+if (!mongoose.models.Task) {
+    const taskSchema = new mongoose.Schema({
+        title: String,
+        link: String,
+        reward: Number
+    });
+    mongoose.model('Task', taskSchema);
+}
+const Task = mongoose.model('Task');
 
 
 
