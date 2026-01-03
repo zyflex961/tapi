@@ -18,10 +18,7 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// task schema here start 
-// کسی قسم کا نیا سکیمہ بنانے کی ضرورت نہیں، بس بنے بنائے ماڈل کو پکڑیں
-const TaskModel = mongoose.models.Task || mongoose.model('Task');
-
+// task schema here 
 
 
 
@@ -555,31 +552,29 @@ export const getTasks = async (req, res) => {
 
 
 // --- CLAIM TASK REWARD FUNCTION ---
-
 export const claim = async (req, res) => {
     const { chatId, taskId } = req.body;
 
     try {
-        // یوزر اور ٹاسک کو ڈھونڈنا
+        // یوزر کو ڈھونڈیں
         const user = await User.findOne({ chatId: String(chatId) });
+        
+        // یہاں ہم براہ راست 'Task' استعمال کریں گے کیونکہ یہ اوپر ڈیفائن ہے
         const task = await Task.findById(taskId);
 
         if (!user || !task) {
-            return res.status(404).json({ success: false, error: "Required data not found." });
+            return res.status(404).json({ success: false, error: "User or Task not found." });
         }
 
-        // چیک کریں کہ ٹاسک پہلے ہی مکمل تو نہیں (String array کے لیے)
+        // چیک کریں کہ پہلے سے تو مکمل نہیں
         if (user.completedTasks.includes(String(taskId))) {
-            return res.status(400).json({ success: false, error: "Task already completed!" });
+            return res.status(400).json({ success: false, error: "Task already completed." });
         }
 
-        // ریوارڈ دینا
+        // ریوارڈ ایڈ کریں
         user.balance += Number(task.reward);
-        
-        // ٹاسک آئی ڈی کو لسٹ میں ڈالنا
         user.completedTasks.push(String(taskId));
         
-        // محفوظ کرنا
         await user.save();
 
         return res.status(200).json({ 
@@ -590,6 +585,6 @@ export const claim = async (req, res) => {
 
     } catch (error) {
         console.error("Claim Error:", error);
-        return res.status(500).json({ success: false, error: "Internal server error." });
+        return res.status(500).json({ success: false, error: "Server error." });
     }
 };
