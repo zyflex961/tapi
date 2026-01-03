@@ -552,39 +552,3 @@ export const getTasks = async (req, res) => {
 
 
 // --- CLAIM TASK REWARD FUNCTION ---
-export const claim = async (req, res) => {
-    const { chatId, taskId } = req.body;
-
-    try {
-        // یوزر کو ڈھونڈیں
-        const user = await User.findOne({ chatId: String(chatId) });
-        
-        // یہاں ہم براہ راست 'Task' استعمال کریں گے کیونکہ یہ اوپر ڈیفائن ہے
-        const task = await Task.findById(taskId);
-
-        if (!user || !task) {
-            return res.status(404).json({ success: false, error: "User or Task not found." });
-        }
-
-        // چیک کریں کہ پہلے سے تو مکمل نہیں
-        if (user.completedTasks.includes(String(taskId))) {
-            return res.status(400).json({ success: false, error: "Task already completed." });
-        }
-
-        // ریوارڈ ایڈ کریں
-        user.balance += Number(task.reward);
-        user.completedTasks.push(String(taskId));
-        
-        await user.save();
-
-        return res.status(200).json({ 
-            success: true, 
-            message: "Reward claimed successfully!", 
-            newBalance: user.balance 
-        });
-
-    } catch (error) {
-        console.error("Claim Error:", error);
-        return res.status(500).json({ success: false, error: "Server error." });
-    }
-};
